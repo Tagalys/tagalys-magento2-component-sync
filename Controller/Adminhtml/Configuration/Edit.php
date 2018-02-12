@@ -164,7 +164,7 @@
     {
         $result = $this->tagalysApi->identificationCheck(json_decode($params['api_credentials'], true));
         if ($result['result'] != 1) {
-            $this->messageManager->addError("Invalid API Credentials. Please try again. If you continue having issues, please email us <a href=\"mailto:cs@tagalys.com\">email us</a>.");
+            $this->messageManager->addError("Invalid API Credentials. Please try again. If you continue having issues, please <a href=\"mailto:cs@tagalys.com\">email us</a>.");
             return false;
         }
         // save credentials

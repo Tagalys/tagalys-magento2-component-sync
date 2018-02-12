@@ -64,7 +64,7 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
             ));
             return $response;
         } catch (\Exception $e) {
-            $this->tagalysLogger->warning("Exception in Api.php identificationCheck: {$e->getMessage()}; \$apiCredentials: " . json_encode($apiCredentials));
+            $this->tagalysLogger->warn("Exception in Api.php identificationCheck: {$e->getMessage()}; \$apiCredentials: " . json_encode($apiCredentials));
          return false;
         }
     }
@@ -95,7 +95,7 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
     private function _apiCall($path, $params) {
         try {
             if ($this->apiServer === false) {
-                $this->tagalysLogger->warning("Error in Api.php _apiCall: \$this->apiServer is false; path: $path; params: " . json_encode($params));
+                $this->tagalysLogger->warn("Error in Api.php _apiCall: \$this->apiServer is false; path: $path; params: " . json_encode($params));
                 return false;
             }
             if (array_key_exists('identification', $params)) {
@@ -116,17 +116,17 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
             $response = curl_exec($curlHandle);
             if (curl_errno($curlHandle)) {
                 $http_code = curl_getinfo($curlHandle, CURLINFO_HTTP_CODE);
-                $this->tagalysLogger->warning("Error in Api.php _apiCall: curl error ($http_code); api_server: $this->apiServer; path: $path; params: " . json_encode($params));
+                $this->tagalysLogger->warn("Error in Api.php _apiCall: curl error ($http_code); api_server: $this->apiServer; path: $path; params: " . json_encode($params));
                 return false;
             }
             if (empty($response)) {
-                $this->tagalysLogger->warning("Error in Api.php _apiCall: response is empty; api_server: $this->apiServer; path: $path; params: " . json_encode($params));
+                $this->tagalysLogger->warn("Error in Api.php _apiCall: response is empty; api_server: $this->apiServer; path: $path; params: " . json_encode($params));
                 return false;
             }
             curl_close($curlHandle);
             $decoded = json_decode($response, true);
             if ($decoded === NULL) {
-                $this->tagalysLogger->warning("Error in Api.php _apiCall: decoded is NULL; api_server: $this->apiServer; path: $path; params: " . json_encode($params));
+                $this->tagalysLogger->warn("Error in Api.php _apiCall: decoded is NULL; api_server: $this->apiServer; path: $path; params: " . json_encode($params));
                 return false;
             }
             if ($decoded["status"] == "OK") {
@@ -135,7 +135,7 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
                 return false;
             }
         } catch (\Exception $e) {
-            $this->tagalysLogger->warning("Exception in Api.php _apiCall: {$e->getMessage()}; api_server: $this->apiServer; path: $path; params: " . json_encode($params));
+            $this->tagalysLogger->warn("Exception in Api.php _apiCall: {$e->getMessage()}; api_server: $this->apiServer; path: $path; params: " . json_encode($params));
             return false;
         }
     }
