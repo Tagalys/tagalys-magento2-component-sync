@@ -58,9 +58,8 @@ class Callback extends \Magento\Framework\App\Action\Action
             }
         } else {
             throw new \Magento\Framework\Exception\NotFoundException(__('Missing params'));
+            $resultJson->setData(array('result' => false));
         }
-
-        $resultJson->setData(array('result' => false));
 
         return $resultJson;
     }

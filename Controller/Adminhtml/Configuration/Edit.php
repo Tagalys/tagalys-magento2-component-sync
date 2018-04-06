@@ -25,20 +25,19 @@
         \Magento\Framework\View\Result\PageFactory $resultPageFactory,
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
-        \Magento\Framework\Message\ManagerInterface $messageManager,
         \Tagalys\Sync\Helper\Sync $tagalysSync,
         \Tagalys\Sync\Helper\Queue $queueHelper
     ) {
-         parent::__construct($context);
-         $this->resultPageFactory = $resultPageFactory;
-         $this->tagalysConfiguration = $tagalysConfiguration;
-         $this->tagalysApi = $tagalysApi;
-         $this->tagalysSync = $tagalysSync;
-         $this->messageManager = $messageManager;
-         $this->queueHelper = $queueHelper;
-         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
-         $this->logger = new \Zend\Log\Logger();
-         $this->logger->addWriter($writer);
+        parent::__construct($context);
+        $this->resultPageFactory = $resultPageFactory;
+        $this->tagalysConfiguration = $tagalysConfiguration;
+        $this->tagalysApi = $tagalysApi;
+        $this->tagalysSync = $tagalysSync;
+        $this->messageManager = $context->getMessageManager();
+        $this->queueHelper = $queueHelper;
+        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
+        $this->logger = new \Zend\Log\Logger();
+        $this->logger->addWriter($writer);
     }
 
     /**
@@ -87,7 +86,7 @@
                                 $redirectToTab = 'sync_settings';
                             } else {
                                 $this->tagalysApi->log('info', 'Completed configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                                $this->tagalysConfiguration->setConfig('stores', true);
+                                $this->tagalysConfiguration->setConfig('stores', json_encode($params['stores_for_tagalys']));
                                 foreach($params['stores_for_tagalys'] as $i => $storeId) {
                                     $this->tagalysSync->triggerFeedForStore($storeId);
                                 }

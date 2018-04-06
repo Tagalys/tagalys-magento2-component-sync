@@ -52,7 +52,6 @@ class Support extends Generic
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Tagalys\Sync\Model\ConfigFactory $configFactory,
-        \Magento\Framework\Filesystem $filesystem,
         \Magento\Catalog\Model\Product\Media\Config $productMediaConfig,
         array $data = []
     ) {
@@ -61,7 +60,7 @@ class Support extends Generic
         $this->tagalysConfiguration = $tagalysConfiguration;
         $this->tagalysApi = $tagalysApi;
         $this->configFactory = $configFactory;
-        $this->filesystem = $filesystem;
+        $this->filesystem = $context->getFilesystem();
         $this->productMediaConfig = $productMediaConfig;
         parent::__construct($context, $registry, $formFactory, $data);
     }

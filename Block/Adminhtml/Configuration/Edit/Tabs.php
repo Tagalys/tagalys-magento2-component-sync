@@ -104,17 +104,18 @@ class Tabs extends \Magento\Backend\Block\Widget\Tabs
                 'title' => __('My Store'),
                 'content' => $this->getChildHtml('mystore'),
             ));
-            $this->addTab('support', array(
-                'label' => __('Support & Troubleshooting'),
-                'title' => __('Support & Troubleshooting'),
-                'content' => $this->getChildHtml('support'),
-            ));
 
             $tabParam = $this->request->getParam('tab');
             if ($tabParam != null) {
                 $this->setActiveTab($tabParam);
             }
         }
+
+        $this->addTab('support', array(
+            'label' => __('Support & Troubleshooting'),
+            'title' => __('Support & Troubleshooting'),
+            'content' => $this->getChildHtml('support'),
+        ));
 
         return parent::_beforeToHtml();
     }

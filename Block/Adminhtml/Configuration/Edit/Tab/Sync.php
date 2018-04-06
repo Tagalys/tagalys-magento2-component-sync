@@ -50,7 +50,6 @@ class Sync extends Generic
         Yesno $yesNo,
         PropertyLocker $propertyLocker,
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
-        \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         array $data = []
     ) {
@@ -58,7 +57,7 @@ class Sync extends Generic
         $this->propertyLocker = $propertyLocker;
         $this->tagalysConfiguration = $tagalysConfiguration;
         $this->tagalysApi = $tagalysApi;
-        $this->storeManager = $storeManager;
+        $this->storeManager = $context->getStoreManager();
         parent::__construct($context, $registry, $formFactory, $data);
     }
 

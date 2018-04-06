@@ -114,11 +114,11 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $productFields;
     }
 
-    public function getProductTags($product) {
+    public function getProductTags($product, $storeId) {
         $productTags = array();
 
         // categories
-        array_push($productTags, array("tag_set" => array("id" => "__categories", "label" => "Categories" ), "items" => $this->getProductCategories($product)));
+        array_push($productTags, array("tag_set" => array("id" => "__categories", "label" => "Categories" ), "items" => $this->getProductCategories($product, $storeId)));
 
         // other attributes
         $attributes = $product->getTypeInstance()->getEditableAttributes($product);
@@ -134,20 +134,20 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                         $value = $product->getData($attribute->getAttributeCode());
                         $ids = explode(',', $value);
                         foreach ($ids as $id) {
-                            $label = $attribute->getSource()->getOptionText($id);
+                            $label = $attribute->setStoreId($storeId)->getSource()->getOptionText($id);
                             if ($id != null && $label != false) {
                                 $items[] = array('id' => $id, 'label' => $label);
                             }
                         }
                     } else {
                         $value = $product->getData($attribute->getAttributeCode());
-                        $label = $product->getResource()->getAttribute($attribute->getAttributeCode())->getFrontend()->getOption($value);
+                        $label = $productAttribute->setStoreId($storeId)->getFrontend()->getOption($value);
                         if ($value != null && $label != false) {
                             $items[] = array('id' => $value, 'label' => $label);
                         }
                     }
                     if (count($items) > 0) {
-                        array_push($productTags, array("tag_set" => array("id" => $attribute->getAttributeCode(), "label" => $attribute->getFrontend()->getLabel($product), 'type' => $fieldType ),"items" => $items));
+                        array_push($productTags, array("tag_set" => array("id" => $attribute->getAttributeCode(), "label" => $productAttribute->getStoreLabel($storeId), 'type' => $fieldType ),"items" => $items));
                     }
                 }
             }
@@ -167,12 +167,12 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                     if ($associatedProduct->isSaleable()) {
                         if (!in_array($associatedProduct->getData($configurableAttribute), $ids)) {
                             $ids[] = $associatedProduct->getData($configurableAttribute);
-                            $items[] = array('id' => $associatedProduct->getData($configurableAttribute), 'label' => $associatedProduct->getAttributeText($configurableAttribute));
+                            $items[] = array('id' => $associatedProduct->getData($configurableAttribute), 'label' => $associatedProduct->setStoreId($storeId)->getAttributeText($configurableAttribute));
                         }
                     }
                 }
                 if (count($items) > 0) {
-                    array_push($productTags, array( "tag_set" => array("id" => $configurableAttribute, "label" => $product->getResource()->getAttribute($configurableAttribute)->getStoreLabel()), "items" => $items));
+                    array_push($productTags, array( "tag_set" => array("id" => $configurableAttribute, "label" => $product->getResource()->getAttribute($configurableAttribute)->getStoreLabel($storeId)), "items" => $items));
                 }
             }
         }
@@ -191,15 +191,15 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $categoriesTree;
     }
 
-    public function detailsFromCategoryTree($categoriesTree) {
+    public function detailsFromCategoryTree($categoriesTree, $storeId) {
         $detailsTree = array();
         foreach($categoriesTree as $categoryId => $subCategoriesTree) {
-            $category = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
+            $category = $this->categoryRepository->get($categoryId, $storeId);
             if ($category->getIsActive()) {
                 $thisCategoryDetails = array("id" => $category->getId() , "label" => $category->getName());
                 $subCategoriesCount = count($subCategoriesTree);
                 if ($subCategoriesCount > 0) {
-                    $thisCategoryDetails['items'] = $this->detailsFromCategoryTree($subCategoriesTree);
+                    $thisCategoryDetails['items'] = $this->detailsFromCategoryTree($subCategoriesTree, $storeId);
                 }
                 array_push($detailsTree, $thisCategoryDetails);
             }
@@ -207,7 +207,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $detailsTree;
     }
 
-    public function getProductCategories($product) {
+    public function getProductCategories($product, $storeId) {
         $categoryIds =  $product->getCategoryIds();
         $activeCategoryPaths = array();
         foreach ($categoryIds as $key => $value) {
@@ -225,20 +225,23 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 $activeCategoriesTree = $this->mergeIntoCategoriesTree($activeCategoriesTree, $pathIds);
             }
         }
-        $activeCategoryDetailsTree = $this->detailsFromCategoryTree($activeCategoriesTree);
+        $activeCategoryDetailsTree = $this->detailsFromCategoryTree($activeCategoriesTree, $storeId);
         return $activeCategoryDetailsTree;
     }
 
-    public function getProductForPrices($product) {
+    public function getProductForPrices($product, $storeId) {
         $productForPrices = $product;
         switch($product->getTypeId()) {
-            case 'simple':
-                break;
             case 'configurable':
                 $minSalePrice = null;
                 foreach($this->linkManagement->getChildren($product->getSku()) as $connectedProduct) {
                     $connectedProductId = $connectedProduct->getId();
-                    $connectedProduct = $this->productFactory->create()->load($connectedProductId);
+                    if ($connectedProductId == NULL) {
+                        $p = $this->productFactory->create()->setStoreId($storeId);
+                        $connectedProduct = $p->load($p->getIdBySku($connectedProduct->getSku()));
+                    } else {
+                        $connectedProduct = $this->productFactory->create()->setStoreId($storeId)->load($connectedProductId);
+                    }
                     $thisSalePrice = $connectedProduct->getFinalPrice();
                     if ($minSalePrice == null || $minSalePrice > $thisSalePrice) {
                         $minSalePrice = $thisSalePrice;
@@ -249,7 +252,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             case 'grouped':
                 $minSalePrice = null;
                 foreach($product->getTypeInstance()->getAssociatedProductIds($product) as $connectedProductId) {
-                    $connectedProduct = $this->productFactory->create()->load($connectedProductId);
+                    $connectedProduct = $this->productFactory->create()->setStoreId($storeId)->load($connectedProductId);
                     $thisSalePrice = $connectedProduct->getFinalPrice();
                     if ($minSalePrice == null || $minSalePrice > $thisSalePrice) {
                         $minSalePrice = $thisSalePrice;
@@ -261,19 +264,19 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $productForPrices;
     }
 
-    public function productDetails($id, $forceRegenerateThumbnail = false) {
-        $product = $this->productFactory->create()->load($id);
+    public function productDetails($id, $storeId, $forceRegenerateThumbnail = false) {
+        $product = $this->productFactory->create()->setStoreId($storeId)->load($id);
 
         $productDetails = array(
             '__id' => $product->getId(),
             'name' => $product->getName(),
-            'link' => $product->getProductUrl(),
+            'link' => $this->productFactory->create()->load($id)->getProductUrl(),
             'sku' => $product->getSku(),
             'scheduled_updates' => array(),
-            'introduced_at' => $product->getCreatedAt(),
+            'introduced_at' => date(\DateTime::ATOM, strtotime($product->getCreatedAt())),
             'in_stock' => $product->isSaleable(),
             'image_url' => $this->getProductImageUrl($product, $forceRegenerateThumbnail),
-            '__tags' => $this->getProductTags($product)
+            '__tags' => $this->getProductTags($product, $storeId)
         );
 
         $productDetails = array_merge($productDetails, $this->getProductFields($product));
@@ -288,7 +291,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             $productDetails['price'] = $product->getPriceModel()->getTotalPrices($product, 'min', 1);
             $productDetails['sale_price'] = $product->getPriceModel()->getTotalPrices($product, 'min', 1);
         } else {
-            $productForPrices = $this->getProductForPrices($product);
+            $productForPrices = $this->getProductForPrices($product, $storeId);
             $productDetails['price'] = $productForPrices->getPrice();
             $productDetails['sale_price'] = $productForPrices->getFinalPrice();
             if ($productForPrices->getSpecialFromDate() != null) {
