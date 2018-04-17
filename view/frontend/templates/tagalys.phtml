@@ -6,7 +6,7 @@
     <script>
         var config = {
             paths:{
-                "tagalys":"https://s3-ap-southeast-1.amazonaws.com/tagalys-assets/tagalys-plugins-v4"
+                "tagalys":"https://s3-ap-southeast-1.amazonaws.com/tagalys-assets/tagalys-plugins-v6"
             },
             shim:{
                 'tagalys':{
@@ -16,10 +16,10 @@
         };
         require.config(config);
 
-        require(['jquery', 'jquery/ui', 'tagalys'], function($){ 
+        require(['jquery', 'jquery/ui', 'tagalys'], function(jQuery){ 
             try {
-                $.fn.tagalys_public_api.server = '<?php echo $apiCredentials['api_server'] ?>';
-                $.fn.tagalys_public_api.identification = {"client_code":"<?php echo $apiCredentials['client_code'] ?>","api_key":"<?php echo $apiCredentials['public_api_key'] ?>","store_id":"<?php echo $this->getCurrentStoreId() ?>"};
+                jQuery.fn.tagalys_public_api.server = '<?php echo $apiCredentials['api_server'] ?>';
+                jQuery.fn.tagalys_public_api.identification = {"client_code":"<?php echo $apiCredentials['client_code'] ?>","api_key":"<?php echo $apiCredentials['public_api_key'] ?>","store_id":"<?php echo $this->getCurrentStoreId() ?>"};
                 var tagalys_context_opts = {
                     api_server: '<?php echo $apiCredentials['api_server'] ?>',
                     api_identification: {"client_code":"<?php echo $apiCredentials['client_code'] ?>","api_key":"<?php echo $apiCredentials['public_api_key'] ?>","store_id":"<?php echo $this->getCurrentStoreId() ?>","currency":"<?php echo $currency['id']; ?>"},
@@ -29,11 +29,11 @@
                         fractional_digits:"<?php echo  $currency['fractional_digits']; ?>"
                     }
                 };
-                var user_id = $.fn.tagalys_analytics.getCookie('__ta_user_id');
+                var user_id = jQuery.fn.tagalys_analytics.getCookie('__ta_user_id');
                 if(user_id != ""){
                   tagalys_context_opts.user_id = user_id;
                 }
-                $('body').tagalys_context(tagalys_context_opts);
+                jQuery('body').tagalys_context(tagalys_context_opts);
             }
             catch(err) {
                 

@@ -174,18 +174,18 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'currencies' => $this->getCurrencies($store),
             'fields' => $tagSetsAndCustomFields['custom_fields'],
             'tag_sets' => $tagSetsAndCustomFields['tag_sets'],
-            'sort_options' =>  $this->getSortOptions(),
+            'sort_options' =>  $this->getSortOptions($storeId),
             'products_count' => $productsCount
         );
         return $configuration;
     }
 
-    public function getSortOptions() {
+    public function getSortOptions($storeId) {
         $sort_options = array();
-        foreach ($this->configModel->getAttributesUsedForSortBy() as $key => $value) {
+        foreach ($this->configModel->getAttributesUsedForSortBy() as $key => $attribute) {
             $sort_options[] = array(
-                'field' => $value["attribute_code"],
-                'label' => $value["store_label"]
+                'field' => $attribute->getAttributeCode(),
+                'label' => $attribute->getStoreLabel($storeId)
             );
         }
         return $sort_options;
@@ -226,6 +226,16 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         }
         return $currencies;
     }
+
+    public function getCurrenciesByCode($store) {
+        $currencies = $this->getCurrencies($store);
+        $currenciesByCode = array();
+        foreach ($currencies as $currency) {
+            $currenciesByCode[$currency['id']] = $currency;
+        }
+        return $currenciesByCode;
+    }
+
 
     public function getTagSetsAndCustomFields($storeId) {
         $tagalys_core_fields = array("__id", "name", "sku", "link", "sale_price", "image_url", "introduced_at", "in_stock");
