@@ -300,7 +300,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 if ($current_datetime->getTimestamp() >= $special_price_from_datetime->getTimestamp()) {
                     if ($productForPrices->getSpecialToDate() != null) {
                         $special_price_to_datetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
-                        if ($current_datetime->getTimestamp() <= $special_price_to_datetime->getTimestamp()) {
+                        if ($current_datetime->getTimestamp() <= ($special_price_to_datetime->getTimestamp() + 24*60*60 - 1)) {
                             // sale price is currently valid. record to date
                             array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $special_price_to_datetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
                         } else {

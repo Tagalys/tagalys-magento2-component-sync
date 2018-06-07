@@ -23,8 +23,9 @@ class Resync
         $this->tagalysConfiguration->setConfig("heartbeat:resyncCron", $timeNow);
         $stores = $this->tagalysConfiguration->getStoresForTagalys();
         foreach ($stores as $i => $storeId) {
+            $periodic_full_sync = $this->tagalysConfiguration->getConfig("periodic_full_sync");
             $resync_required = $this->tagalysConfiguration->getConfig("store:$storeId:resync_required");
-            if ($resync_required == '1') {
+            if ($periodic_full_sync == '1' || $resync_required == '1') {
                 $this->tagalysSync->triggerFeedForStore($storeId);
                 $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
             }

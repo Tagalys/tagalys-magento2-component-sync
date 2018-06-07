@@ -43,7 +43,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         $this->maxProducts = 500;
     }
 
-    public function triggerFeedForStore($storeId) {
+    public function triggerFeedForStore($storeId, $forceRegenerateThumbnails = false) {
         $feedStatus = $this->tagalysConfiguration->getConfig("store:$storeId:feed_status", true);
         if ($feedStatus == NULL || in_array($feedStatus['status'], array('finished'))) {
             $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
@@ -55,7 +55,8 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 'products_count' => $productsCount,
                 'completed_count' => 0,
                 'updated_at' => $timeNow,
-                'triggered_at' => $timeNow
+                'triggered_at' => $timeNow,
+                'force_regenerate_thumbnails' => $forceRegenerateThumbnails
             )));
             $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
         } else {
@@ -350,6 +351,10 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                                 $forceRegenerateThumbnail = false;
                                 if ($type == 'updates') {
                                     $forceRegenerateThumbnail = true;
+                                } else {
+                                    if (array_key_exists('force_regenerate_thumbnails', $syncFileStatus)) {
+                                        $forceRegenerateThumbnail = $syncFileStatus['force_regenerate_thumbnails'];
+                                    }
                                 }
                                 $productDetails = (array) $this->tagalysProduct->productDetails($product['entity_id'], $storeId, $forceRegenerateThumbnail);
 

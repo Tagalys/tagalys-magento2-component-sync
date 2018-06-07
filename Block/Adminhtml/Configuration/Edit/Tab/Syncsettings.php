@@ -90,10 +90,21 @@ class Syncsettings extends Generic
             'style' => "width:100%; height: 125px;",
             'disabled' => false,
             'readonly' => false,
-            'after_element_html' => '<br><small>Products and configuration for these stores will be synced to Tagalys</small>',
             'tabindex' => 1
         ));
-        
+
+        $syncSettingsFieldset->addField('periodic_full_sync', 'select', array(
+            'name' => 'periodic_full_sync',
+            'label' => 'Daily full sync',
+            'title' => 'Daily full sync',
+            'options' => array(
+                '0' => __('No'),
+                '1' => __('Yes'),
+            ),
+            'required' => true,
+            'style' => 'width:100%',
+            'value' => $this->tagalysConfiguration->getConfig("periodic_full_sync")
+        ));
 
 
         $setupStatus = $this->tagalysConfiguration->getConfig('setup_status');

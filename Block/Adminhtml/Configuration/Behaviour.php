@@ -18,12 +18,12 @@ class Behaviour extends Template
 
     public function syncManuallyUrl()
     {
-        return $this->urlInterface->getUrl('/sync/now');
+        return $this->urlInterface->getUrl('tagalys/sync/now');
     }
 
     public function syncStatusUrl()
     {
-        return $this->urlInterface->getUrl('/sync/status');
+        return $this->urlInterface->getUrl('tagalys/sync/status');
     }
     public function test()
     {

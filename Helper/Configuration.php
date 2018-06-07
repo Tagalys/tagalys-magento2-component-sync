@@ -74,7 +74,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'setup_status' => 'api_credentials',
                 'search_box_selector' => '#search',
                 'cron_heartbeat_sent' => false,
-                'suggestions_align_to_parent_selector' => ''
+                'suggestions_align_to_parent_selector' => '',
+                'periodic_full_sync' => '1'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];

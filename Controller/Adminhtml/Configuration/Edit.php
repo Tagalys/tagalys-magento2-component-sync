@@ -26,7 +26,8 @@
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Tagalys\Sync\Helper\Sync $tagalysSync,
-        \Tagalys\Sync\Helper\Queue $queueHelper
+        \Tagalys\Sync\Helper\Queue $queueHelper,
+        \Tagalys\Mpages\Helper\Mpages $tagalysMpages
     ) {
         parent::__construct($context);
         $this->resultPageFactory = $resultPageFactory;
@@ -35,6 +36,7 @@
         $this->tagalysSync = $tagalysSync;
         $this->messageManager = $context->getMessageManager();
         $this->queueHelper = $queueHelper;
+        $this->tagalysMpages = $tagalysMpages;
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
         $this->logger = new \Zend\Log\Logger();
         $this->logger->addWriter($writer);
@@ -76,6 +78,9 @@
                         if (array_key_exists('search_box_selector', $params)) {
                             $this->tagalysConfiguration->setConfig('search_box_selector', $params['search_box_selector']);
                             $this->tagalysConfiguration->setConfig('suggestions_align_to_parent_selector', $params['suggestions_align_to_parent_selector']);
+                        }
+                        if (array_key_exists('periodic_full_sync', $params)) {
+                            $this->tagalysConfiguration->setConfig('periodic_full_sync', $params['periodic_full_sync']);
                         }
                         if (array_key_exists('stores_for_tagalys', $params) && count($params['stores_for_tagalys']) > 0) {
                             $this->tagalysApi->log('info', 'Starting configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
@@ -128,6 +133,16 @@
                     $this->tagalysApi->log('warn', 'search:enabled:'.$params['enable_mystore']);
                     $redirectToTab = 'mystore';
                     break;
+                case 'Update Popular Searches now':
+                    $this->tagalysApi->log('warn', 'Triggering update popular searches');
+                    $this->tagalysSync->cachePopularSearches();
+                    $redirectToTab = 'support';
+                    break;
+                case 'Update Merchandised Pages cache now':
+                    $this->tagalysApi->log('warn', 'Triggering update mpages cache');
+                    $this->tagalysMpages->updateMpagesCache();
+                    $redirectToTab = 'support';
+                    break;
                 case 'Trigger full products resync now':
                     $this->tagalysApi->log('warn', 'Triggering full products resync');
                     foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
@@ -153,7 +168,7 @@
                     $redirectToTab = 'api_credentials';
                     break;
             }
-            return $this->_redirect('tagalys/configuration/edit', array('_query' => 'tab='.$redirectToTab));
+            return $this->_redirect('tagalys/configuration/edit', array('_query' => 'tab=tagalys_configuration_tabs_'.$redirectToTab.'_content'));
         }
 
         return  $resultPage;

@@ -144,16 +144,20 @@ class Support extends Generic
                 'text' => __('<small><b>NOTE: Please make sure Cron is setup and running. <a target=_blank href="http://devdocs.magento.com/guides/v2.2/config-guide/cli/config-cli-subcommands-cron.html">Cron Documentation</a></b></small>'),
             ));
 
-            $tagalysClearSyncUpdatesQueueFieldset = $form->addFieldset('tagalys_clear_sync_updates_queue_fieldset', array('legend' => __('Clear Tagalys sync queue')));
+            $tagalysUpdateCachesFieldset = $form->addFieldset('tagalys_update_caches_fieldset', array('legend' => __('Update Caches')));
 
-            $tagalysClearSyncUpdatesQueueFieldset->addField('note_clear_sync_updates', 'note', array(
-                'text' => __('This will clear all product ids in Tagalys\' sync queue.')
-            ));
-
-            $tagalysClearSyncUpdatesQueueFieldset->addField('submit_clear_sync_updates_queue', 'submit', array(
+            $tagalysUpdateCachesFieldset->addField('submit_update_popular_searches_cache', 'submit', array(
                 'label' => '',
                 'name' => 'tagalys_submit_action',
-                'value' => 'Clear Tagalys sync queue',
+                'value' => 'Update Popular Searches now',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
+            ));
+            $tagalysUpdateCachesFieldset->addField('submit_update_mpages_cache', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => 'Update Merchandised Pages cache now',
                 'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
                 'class'=> "tagalys-button-submit",
                 'tabindex' => 1
@@ -169,6 +173,21 @@ class Support extends Generic
                 'label' => '',
                 'name' => 'tagalys_submit_action',
                 'value' => 'Trigger configuration resync now',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
+            ));
+
+            $tagalysClearSyncUpdatesQueueFieldset = $form->addFieldset('tagalys_clear_sync_updates_queue_fieldset', array('legend' => __('Clear Tagalys sync queue')));
+
+            $tagalysClearSyncUpdatesQueueFieldset->addField('note_clear_sync_updates', 'note', array(
+                'text' => __('This will clear all product ids in Tagalys\' sync queue.')
+            ));
+
+            $tagalysClearSyncUpdatesQueueFieldset->addField('submit_clear_sync_updates_queue', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => 'Clear Tagalys sync queue',
                 'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
                 'class'=> "tagalys-button-submit",
                 'tabindex' => 1
