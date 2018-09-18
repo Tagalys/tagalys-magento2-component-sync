@@ -118,10 +118,61 @@
                     $this->tagalysApi->log('warn', 'search:enabled:'.$params['enable_search']);
                     $redirectToTab = 'search';
                     break;
-                case 'Save Merchandised Pages Settings':
-                    $this->tagalysConfiguration->setConfig('module:mpages:enabled', $params['enable_mpages']);
-                    $this->tagalysApi->log('warn', 'search:enabled:'.$params['enable_mpages']);
-                    $redirectToTab = 'mpages';
+                case 'Save Listing Pages Settings':
+                    if (array_key_exists('verified_with_tech_team', $params) && $params['verified_with_tech_team'] == '1') {
+                        if (array_key_exists('override_layout_for_listing_pages', $params) && $params['override_layout_for_listing_pages'] == '1') {
+                            $this->tagalysConfiguration->setConfig('listing_pages:override_layout', $params['override_layout_for_listing_pages']);
+                        } else {
+                            $this->tagalysConfiguration->setConfig('listing_pages:override_layout', '0');
+                        }
+                        $this->tagalysConfiguration->setConfig('listing_pages:override_layout_name', $params['override_layout_name_for_listing_pages']);
+                        $this->tagalysConfiguration->setConfig('module:listingpages:enabled', $params['enable_listingpages']);
+                        $this->tagalysApi->log('warn', 'listingpages:enabled:'.$params['enable_listingpages']);
+                        if (!array_key_exists('categories_for_tagalys', $params)) {
+                            $params['categories_for_tagalys'] = array();
+                        }
+                        $this->tagalysApi->log('info', 'Starting Listing Pages sync', array('categories_for_tagalys' => $params['categories_for_tagalys']));
+                        $result = $this->tagalysConfiguration->syncCategories($params['categories_for_tagalys']);
+                        if ($result === false) {
+                            $this->tagalysApi->log('error', 'syncCategories returned false', array('categories_for_tagalys' => $params['categories_for_tagalys']));
+                            $this->messageManager->addError("Sorry, something went wrong while saving Listing Pages configuration. We've logged the issue and we'll get back once we know more. You can contact us here: <a href=\"mailto:cs@tagalys.com\">cs@tagalys.com</a>");
+                            $redirectToTab = 'listing_pages';
+                        } else {
+                            if ($result === true) {
+                                $this->tagalysApi->log('info', 'Completed Listing Pages sync', array('categories_for_tagalys' => $params['categories_for_tagalys']));
+                                $this->tagalysConfiguration->setConfig('categories', $params['categories_for_tagalys'], true);
+                                $categoryIds = array();
+                                foreach($params['categories_for_tagalys'] as $i => $categoryPath) {
+                                    $path = explode('/', $categoryPath);
+                                    $categoryIds[] = intval(end($path));
+                                }
+                                $this->tagalysConfiguration->setConfig('category_ids', $categoryIds, true);
+                            } else {
+                                // $result is an array of skipped category ids
+                                $fitlered_categories_for_tagalys = array();
+                                $filtered_category_ids_for_tagalys = array();
+                                $this->tagalysApi->log('info', 'Completed Listing Pages sync', array('categories_for_tagalys' => $params['categories_for_tagalys'], 'skipped_categories' => $result));
+                                foreach($params['categories_for_tagalys'] as $i => $categoryPath) {
+                                    $path = explode('/', $categoryPath);
+                                    $categoryId = intval(end($path));
+                                    if (in_array($categoryId, $result)) {
+                                        // skipped page
+                                    } else {
+                                        // okay...
+                                        $fitlered_categories_for_tagalys[] = $categoryPath;
+                                        $filtered_category_ids_for_tagalys[] = $categoryId;
+                                    }
+                                }
+                                $this->tagalysConfiguration->setConfig('categories', $fitlered_categories_for_tagalys, true);
+                                $this->tagalysConfiguration->setConfig('category_ids', $filtered_category_ids_for_tagalys, true);
+                                $this->messageManager->addNoticeMessage("Some pages cannot be powered by Tagalys as there are no products available to create them. They have been automatically unselected from the list.");
+                            }
+                            $redirectToTab = 'listing_pages';
+                        }
+                    } else {
+                        $this->messageManager->addError("Please consult with your tech team and double check your settings before proceeding. If you have done so, please check the box.");
+                    }
+                    $redirectToTab = 'listingpages';
                     break;
                 case 'Save Recommendations Settings':
                     $this->tagalysConfiguration->setConfig('module:recommendations:enabled', $params['enable_recommendations']);
@@ -168,7 +219,7 @@
                     $redirectToTab = 'api_credentials';
                     break;
             }
-            return $this->_redirect('tagalys/configuration/edit', array('_query' => 'tab=tagalys_configuration_tabs_'.$redirectToTab.'_content'));
+            return $this->_redirect('tagalys/configuration/edit/active_tab/'.$redirectToTab);
         }
 
         return  $resultPage;

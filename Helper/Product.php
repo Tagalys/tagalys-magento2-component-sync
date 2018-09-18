@@ -43,6 +43,13 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
     public function getProductImageUrl($product, $forceRegenerateThumbnail) {
         try {
             $productImagePath = $product->getImage();
+            if ($productImagePath == 'no_selection' || is_null($productImagePath) || $productImagePath == '') {
+                $images = $product->getMediaGalleryImages();
+                foreach($images as $child) {
+                    $productImagePath = $child['file'];
+                    break;
+                }
+            }
             if ($productImagePath != null) {
                 $baseProductImagePath = $this->filesystem->getDirectoryRead('media')->getAbsolutePath($this->productMediaConfig->getBaseMediaUrlAddition()) . $productImagePath;
                 // $baseProductImagePath = $this->directoryList->getPath('media') . DIRECTORY_SEPARATOR . "catalog" . DIRECTORY_SEPARATOR . "product" . $productImagePath;
@@ -79,7 +86,6 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 return $this->getPlaceholderImageUrl();
             }
         } catch(\Exception $e) {
-            // Mage::log("Exception in getProductImageUrl: {$e->getMessage()}", null, 'tagalys-image-generation.log');
             return $this->getPlaceholderImageUrl();
         }
     }

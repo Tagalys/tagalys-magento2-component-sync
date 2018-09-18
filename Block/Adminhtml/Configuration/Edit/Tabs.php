@@ -89,10 +89,10 @@ class Tabs extends \Magento\Backend\Block\Widget\Tabs
                 'title' => __('Search'),
                 'content' => $this->getChildHtml('search'),
             ));
-            $this->addTab('mpages', array(
-                'label' => __('Merchandised Pages'),
-                'title' => __('Merchandised Pages'),
-                'content' => $this->getChildHtml('mpages'),
+            $this->addTab('listingpages', array(
+                'label' => __('Listing Pages'),
+                'title' => __('Listing Pages'),
+                'content' => $this->getChildHtml('listingpages'),
             ));
             $this->addTab('recommendations', array(
                 'label' => __('Recommendations'),

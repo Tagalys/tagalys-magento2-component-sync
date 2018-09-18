@@ -24,8 +24,8 @@
                 <container label="Search" name="search">
                     <block class="Tagalys\Sync\Block\Adminhtml\Configuration\Edit\Tab\Search" as="search"/>
                 </container>
-                <container label="Mpages" name="mpages">
-                    <block class="Tagalys\Sync\Block\Adminhtml\Configuration\Edit\Tab\Mpages" as="mpages"/>
+                <container label="Listingpages" name="listingpages">
+                    <block class="Tagalys\Sync\Block\Adminhtml\Configuration\Edit\Tab\Listingpages" as="listingpages"/>
                 </container>
                 <container label="Recommendations" name="recommendations">
                     <block class="Tagalys\Sync\Block\Adminhtml\Configuration\Edit\Tab\Recommendations" as="recommendations"/>

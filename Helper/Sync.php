@@ -138,7 +138,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 $storesForTagalys = $this->tagalysConfiguration->getStoresForTagalys();
                 if ($storesForTagalys != null) {
                     foreach ($storesForTagalys as $storeId) {
-                        $popularSearches = $this->tagalysApi->storeApiCall($storeId, '/v1/popular_searches', array());
+                        $popularSearches = $this->tagalysApi->storeApiCall($storeId.'', '/v1/popular_searches', array());
                         if ($popularSearches != false && array_key_exists('popular_searches', $popularSearches)) {
                             $this->tagalysConfiguration->setConfig("store:{$storeId}:popular_searches", $popularSearches['popular_searches'], true);
                         }
@@ -452,7 +452,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 'seconds_since_reference' => ($utcNow->getTimestamp() - $triggerDatetime),
                 'callback_url' => $this->frontUrlHelper->getUrl('tagalys/sync/callback/')
             );
-            $response = $this->tagalysApi->storeApiCall($storeId, "/v1/products/sync_$type", $data);
+            $response = $this->tagalysApi->storeApiCall($storeId.'', "/v1/products/sync_$type", $data);
             if ($response != false && $response['result']) {
                 $syncFileStatus['status'] = 'sent_to_tagalys';
                 $this->tagalysConfiguration->setConfig("store:$storeId:{$type}_status", $syncFileStatus, true);

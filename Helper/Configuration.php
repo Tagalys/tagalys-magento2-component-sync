@@ -16,7 +16,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Catalog\Model\Config $configModel,
         \Magento\Catalog\Model\ResourceModel\Product\Attribute\CollectionFactory $collectionFactory,
         \Tagalys\Sync\Model\ConfigFactory $configFactory,
-        \Tagalys\Sync\Helper\Api $tagalysApi
+        \Tagalys\Sync\Helper\Api $tagalysApi,
+        \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollection
     )
     {
         $this->datetime = $datetime;
@@ -32,13 +33,18 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $this->productFactory = $productFactory;
         $this->configFactory = $configFactory;
         $this->tagalysApi = $tagalysApi;
+        $this->categoryCollection = $categoryCollection;
     }
 
-    public function isTagalysEnabledForStore($storeId) {
+    public function isTagalysEnabledForStore($storeId, $module = false) {
         $storesForTagalys = $this->getStoresForTagalys();
         if (in_array($storeId, $storesForTagalys)) {
-            if ($this->getConfig("module:search:enabled") == '1') {
+            if ($module === false) {
                 return true;
+            } else {
+                if ($this->getConfig("module:$module:enabled") == '1') {
+                    return true;
+                }
             }
         }
         return false;
@@ -75,7 +81,12 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'search_box_selector' => '#search',
                 'cron_heartbeat_sent' => false,
                 'suggestions_align_to_parent_selector' => '',
-                'periodic_full_sync' => '1'
+                'periodic_full_sync' => '1',
+                'module:mpages:enabled' => '1',
+                'categories'=> '[]',
+                'category_ids'=> '[]',
+                'listing_pages:override_layout'=> '1',
+                'listing_pages:override_layout_name'=> '1column'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
@@ -128,6 +139,36 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         return array();
     }
 
+    public function getCategoriesForTagalys() {
+        $categoriesForTagalys = $this->getConfig("categories", true);
+        
+        if ($categoriesForTagalys != NULL) {
+            if (!is_array($categoriesForTagalys)) {
+                $categoriesForTagalys = array($categoriesForTagalys);
+            }
+            return $categoriesForTagalys;
+        }
+        return array();
+    }
+
+    public function getAllCategories() {
+        $categories = $this->categoryCollection->create()->addAttributeToSelect('*')->load();
+        foreach ($categories as $category) {
+            $pathNames = array();
+            $pathIds = explode('/', $category->getPath());
+            if (count($pathIds) > 2) {
+                $path = $this->categoryCollection->create()->addAttributeToSelect('*')->addAttributeToFilter('entity_id', array('in' => $pathIds));
+                foreach($path as $i => $path_category) {
+                    if ($i != 1) { // skip root category
+                        $pathNames[] = $path_category->getName();
+                    }
+                }
+                $output[] = array('value' => implode('/', $pathIds), 'label' => implode(' / ', $pathNames));
+            }
+        }
+        return $output;
+    }
+
     public function getAllWebsiteStores() {
         foreach ($this->storeManager->getWebsites() as $website) {
             foreach ($website->getGroups() as $group) {
@@ -138,6 +179,70 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             }
         }
         return $website_stores;
+    }
+
+    public function syncCategories($categoryPathsForTagalys = false) {
+        if ($categoryPathsForTagalys === false) {
+            $categoryPathsForTagalys = $this->getCategoriesForTagalys();
+        }
+        $categoryIdsForTagalys = array();
+        foreach ($categoryPathsForTagalys as $categoryPathForTagalys) {
+            $split = explode('/', $categoryPathForTagalys);
+            $categoryIdsForTagalys[] = end($split);
+        }
+
+        $storeIds = $this->getStoresForTagalys();
+        $allCategories = $this->getAllCategories();
+
+        $platformPages = array('stores' => array());
+        foreach ($storeIds as $index => $storeId) {
+            $platformPages['stores'][] = array('id' => $storeId, 'platform_pages' => $this->getStoreCategories($storeId, $categoryIdsForTagalys));
+        }
+
+        $tagalysResponse = $this->tagalysApi->clientApiCall('/v1/mpages/_sync_platform_pages', $platformPages);
+        if ($tagalysResponse === false) {
+            return false;
+        }
+        if ($tagalysResponse['result'] === true) {
+            if (count($tagalysResponse['skipped_pages']) === 0) {
+                return true;
+            } else {
+                $skippedIds = array();
+                foreach ($tagalysResponse['skipped_pages'] as $key => $skippedPage) {
+                    $split = explode('-', $skippedPage);
+                    $skippedIds[] = intval(end($split));
+                }
+                return $skippedIds;
+            }
+        }
+        return false;
+    }
+
+    public function getStoreCategories($storeId, $categoryIdsForTagalys) {
+        $rootCategoryId = $this->storeManager->getStore($storeId)->getRootCategoryId();
+        $storeCategoriesData = array();
+        $allCategories = $this->getAllCategories();
+        $listingPagesEnabled = $this->getConfig('module:listingpages:enabled');
+        foreach ($allCategories as $allCategory) {
+            if (strpos($allCategory['value'], "/$rootCategoryId/") !== false) {
+                // $storeId has this category
+                $split = explode('/', $allCategory['value']);
+                $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+                $categoryModel = $objectManager->create('\Magento\Catalog\Model\Category');
+                $thisCategoryId = end($split);
+                $category = $categoryModel->load($thisCategoryId);
+                $storeCategoriesData[] = array(
+                    "id" => "__categories-$thisCategoryId",
+                    "slug" => $category->getUrl(),
+                    "enabled" => ($listingPagesEnabled && in_array($thisCategoryId, $categoryIdsForTagalys)),
+                    "name" => implode(' / ', array_slice(explode(' / ', $allCategory['label']), 1)),
+                    "filters" => array(array(
+                        "field" => "__categories",
+                        "value" => $thisCategoryId
+                )));
+            }
+        }
+        return $storeCategoriesData;
     }
 
     public function syncClientConfiguration($storeIds = false) {
