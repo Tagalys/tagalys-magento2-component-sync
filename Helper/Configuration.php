@@ -79,6 +79,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             $defaultConfigValues = array(
                 'setup_status' => 'api_credentials',
                 'search_box_selector' => '#search',
+                'max_product_thumbnail_width' => '400',
+                'max_product_thumbnail_height' => '400',
                 'cron_heartbeat_sent' => false,
                 'suggestions_align_to_parent_selector' => '',
                 'periodic_full_sync' => '1',
@@ -86,7 +88,10 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'categories'=> '[]',
                 'category_ids'=> '[]',
                 'listing_pages:override_layout'=> '1',
-                'listing_pages:override_layout_name'=> '1column'
+                'listing_pages:override_layout_name'=> '1column',
+                'product_image_attribute' => 'small_image',
+                'product_image_hover_attribute' => '',
+                'product_thumbnail_quality' => '80'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
@@ -348,6 +353,15 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $tag_sets = array();
         $tag_sets[] = array("id" =>"__categories", "label" => "Categories", "filters" => true, "search" => true);
         $custom_fields = array();
+        $custom_fields[] = array(
+            'name' => '__new',
+            'label' => 'New',
+            'type' => 'boolean',
+            'currency' => false,
+            'display' => true,
+            'filters' => false,
+            'search' => false
+        );
         $magento_tagalys_type_mapping = array(
             'text' => 'string',
             'textarea' => 'string',

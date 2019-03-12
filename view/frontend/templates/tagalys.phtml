@@ -29,6 +29,16 @@
                         fractional_digits:"<?php echo  $currency['fractional_digits']; ?>"
                     }
                 };
+                <?php
+                    $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+                    $urlInterface = $objectManager->create('\Magento\Framework\UrlInterface');
+                    $urlEncoder = $objectManager->create('\Magento\Framework\Url\EncoderInterface');
+                    $uenc = $urlEncoder->encode($urlInterface->getCurrentUrl());
+                    $formKey = $objectManager->get('Magento\Framework\Data\Form\FormKey')->getFormKey();
+                ?>
+                jQuery.fn.tagalys_platform_variables = jQuery.fn.tagalys_platform_variables || {};
+                jQuery.fn.tagalys_platform_variables.uenc = '<?php echo $uenc ?>';
+                jQuery.fn.tagalys_platform_variables.formKey = '<?php echo $formKey ?>';
                 var user_id = jQuery.fn.tagalys_analytics.getCookie('__ta_user_id');
                 if(user_id != ""){
                   tagalys_context_opts.user_id = user_id;

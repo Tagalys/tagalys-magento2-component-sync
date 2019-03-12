@@ -15,7 +15,8 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Framework\Image\AdapterFactory $imageFactory,
         \Magento\Framework\Filesystem $filesystem,
-        \Magento\Catalog\Api\CategoryRepositoryInterface $categoryRepository
+        \Magento\Catalog\Api\CategoryRepositoryInterface $categoryRepository,
+        \Tagalys\Sync\Helper\Configuration $tagalysConfiguration
     )
     {
         $this->productFactory = $productFactory;
@@ -30,26 +31,24 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $this->imageFactory = $imageFactory;
         $this->filesystem = $filesystem;
         $this->categoryRepository = $categoryRepository;
+        $this->tagalysConfiguration = $tagalysConfiguration;
     }
 
-    public function getPlaceholderImageUrl() {
+    public function getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder) {
         try {
-            return $this->storeManager->getStore()->getBaseUrl('media') . $this->productMediaConfig->getBaseMediaUrlAddition() . DIRECTORY_SEPARATOR . 'placeholder' . DIRECTORY_SEPARATOR . $this->scopeConfig->getValue('catalog/placeholder/small_image_placeholder');
+            if ($allowPlaceholder) {
+                return $this->storeManager->getStore()->getBaseUrl('media') . $this->productMediaConfig->getBaseMediaUrlAddition() . DIRECTORY_SEPARATOR . 'placeholder' . DIRECTORY_SEPARATOR . $this->scopeConfig->getValue("catalog/placeholder/{$imageAttributeCode}_placeholder");
+            } else {
+                return null;
+            }
         } catch(\Exception $e) {
             return null;
         }
     }
 
-    public function getProductImageUrl($product, $forceRegenerateThumbnail) {
+    public function getProductImageUrl($imageAttributeCode, $allowPlaceholder, $product, $forceRegenerateThumbnail) {
         try {
-            $productImagePath = $product->getImage();
-            if ($productImagePath == 'no_selection' || is_null($productImagePath) || $productImagePath == '') {
-                $images = $product->getMediaGalleryImages();
-                foreach($images as $child) {
-                    $productImagePath = $child['file'];
-                    break;
-                }
-            }
+            $productImagePath = $product->getData($imageAttributeCode);
             if ($productImagePath != null) {
                 $baseProductImagePath = $this->filesystem->getDirectoryRead('media')->getAbsolutePath($this->productMediaConfig->getBaseMediaUrlAddition()) . $productImagePath;
                 // $baseProductImagePath = $this->directoryList->getPath('media') . DIRECTORY_SEPARATOR . "catalog" . DIRECTORY_SEPARATOR . "product" . $productImagePath;
@@ -70,23 +69,24 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                             $imageResize->keepTransparency(TRUE);
                             $imageResize->keepFrame(FALSE);
                             $imageResize->keepAspectRatio(TRUE);
-                            $imageResize->resize(300, 300);
+                            $imageResize->quality($this->tagalysConfiguration->getConfig('product_thumbnail_quality'));
+                            $imageResize->resize($this->tagalysConfiguration->getConfig('max_product_thumbnail_width'), $this->tagalysConfiguration->getConfig('max_product_thumbnail_height'));
                             $imageResize->save($resizedProductImagePath);
                         }
                         if (file_exists($resizedProductImagePath)) {
                             return str_replace('http:', '', $this->storeManager->getStore()->getBaseUrl('media') . 'tagalys/product_images' . $productImagePath);
                         } else {
-                            return $this->getPlaceholderImageUrl();
+                            return $this->getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder);
                         }
                     }
                 } else {
-                    return $this->getPlaceholderImageUrl();
+                    return $this->getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder);
                 }
             } else {
-                return $this->getPlaceholderImageUrl();
+                return $this->getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder);
             }
         } catch(\Exception $e) {
-            return $this->getPlaceholderImageUrl();
+            return $this->getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder);
         }
     }
 
@@ -271,7 +271,9 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function productDetails($id, $storeId, $forceRegenerateThumbnail = false) {
-        $product = $this->productFactory->create()->setStoreId($storeId)->load($id);
+        // $product = $this->productFactory->create()->setStoreId($storeId)->load($id);
+        $product = $this->productFactory->create()->setStoreId($storeId)
+            ->load($id);
 
         $productDetails = array(
             '__id' => $product->getId(),
@@ -281,16 +283,20 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             'scheduled_updates' => array(),
             'introduced_at' => date(\DateTime::ATOM, strtotime($product->getCreatedAt())),
             'in_stock' => $product->isSaleable(),
-            'image_url' => $this->getProductImageUrl($product, $forceRegenerateThumbnail),
+            'image_url' => $this->getProductImageUrl($this->tagalysConfiguration->getConfig('product_image_attribute'), true, $product, $forceRegenerateThumbnail),
             '__tags' => $this->getProductTags($product, $storeId)
         );
+
+        if ($this->tagalysConfiguration->getConfig("product_image_hover_attribute") != '') {
+            $productDetails['image_hover_url'] = $this->getProductImageUrl($this->tagalysConfiguration->getConfig('product_image_hover_attribute'), false, $product, $forceRegenerateThumbnail);
+        }
 
         $productDetails = array_merge($productDetails, $this->getProductFields($product));
 
         // synced_at
-        $utc_now = new \DateTime("now", new \DateTimeZone('UTC'));
-        $time_now =  $utc_now->format(\DateTime::ATOM);
-        $productDetails['synced_at'] = $time_now;
+        $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
+        $timeNow =  $utcNow->format(\DateTime::ATOM);
+        $productDetails['synced_at'] = $timeNow;
 
         // prices and sale price from/to
         if ($product->getTypeId() == 'bundle') {
@@ -301,14 +307,14 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             $productDetails['price'] = $productForPrices->getPrice();
             $productDetails['sale_price'] = $productForPrices->getFinalPrice();
             if ($productForPrices->getSpecialFromDate() != null) {
-                $special_price_from_datetime = new \DateTime($productForPrices->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
-                $current_datetime = new \DateTime("now", new \DateTimeZone('UTC'));
-                if ($current_datetime->getTimestamp() >= $special_price_from_datetime->getTimestamp()) {
+                $specialPriceFromDatetime = new \DateTime($productForPrices->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                $currentDatetime = new \DateTime("now", new \DateTimeZone('UTC'));
+                if ($currentDatetime->getTimestamp() >= $specialPriceFromDatetime->getTimestamp()) {
                     if ($productForPrices->getSpecialToDate() != null) {
-                        $special_price_to_datetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
-                        if ($current_datetime->getTimestamp() <= ($special_price_to_datetime->getTimestamp() + 24*60*60 - 1)) {
+                        $specialPriceToDatetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                        if ($currentDatetime->getTimestamp() <= ($specialPriceToDatetime->getTimestamp() + 24*60*60 - 1)) {
                             // sale price is currently valid. record to date
-                            array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $special_price_to_datetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
+                            array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $specialPriceToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
                         } else {
                             // sale is past expiry; don't record from/to datetimes
                         }
@@ -319,13 +325,54 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                     // future sale - record other sale price and from/to datetimes
                     $specialPrice = $productForPrices->getSpecialPrice();
                     if ($specialPrice != null && $specialPrice > 0) {
-                        $special_price_from_datetime = new \DateTime($productForPrices->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
-                        array_push($productDetails['scheduled_updates'], array('at' => $special_price_from_datetime->format('Y-m-d H:i:sP'), 'updates' => array('sale_price' => $productForPrices->getSpecialPrice())));
+                        $specialPriceFromDatetime = new \DateTime($productForPrices->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                        array_push($productDetails['scheduled_updates'], array('at' => $specialPriceFromDatetime->format('Y-m-d H:i:sP'), 'updates' => array('sale_price' => $productForPrices->getSpecialPrice())));
                         if ($productForPrices->getSpecialToDate() != null) {
-                            $special_price_to_datetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
-                            array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $special_price_to_datetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
+                            $specialPriceToDatetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                            array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $specialPriceToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
                         }
                     }
+                }
+            }
+        }
+
+        // New
+        $currentDatetime = new \DateTime("now", new \DateTimeZone('UTC'));
+        $productDetails['__new'] = false;
+        if ($product->getNewsFromDate() != null) {
+            $newFromDatetime = new \DateTime($product->getNewsFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+            if ($currentDatetime->getTimestamp() >= $newFromDatetime->getTimestamp()) {
+                if ($product->getNewsToDate() != null) {
+                    $newToDatetime = new \DateTime($product->getNewsToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                    if ($currentDatetime->getTimestamp() <= ($newToDatetime->getTimestamp() + 24*60*60 - 1)) {
+                        // currently new. record to date
+                        $productDetails['__new'] = true;
+                        array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $newToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('__new' => false)));
+                    } else {
+                        // new is past expiry; don't record from/to datetimes
+                    }
+                } else {
+                    // new is valid indefinitely
+                    $productDetails['__new'] = true;
+                }
+            } else {
+                // new in the future - record from/to datetimes
+                array_push($productDetails['scheduled_updates'], array('at' => $newFromDatetime->format('Y-m-d H:i:sP'), 'updates' => array('__new' => true)));
+                if ($product->getNewsToDate() != null) {
+                    $newToDatetime = new \DateTime($product->getNewsToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                    array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $newToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('__new' => false)));
+                }
+            }
+        } else {
+            // no from date. assume applicable from now
+            if ($product->getNewsToDate() != null) {
+                $newToDatetime = new \DateTime($product->getNewsToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                if ($currentDatetime->getTimestamp() <= ($newToDatetime->getTimestamp() + 24*60*60 - 1)) {
+                    // currently new. record to date
+                    $productDetails['__new'] = true;
+                    array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $newToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('__new' => false)));
+                } else {
+                    // new is past expiry; don't record from/to datetimes
                 }
             }
         }

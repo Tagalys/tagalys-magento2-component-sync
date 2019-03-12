@@ -91,10 +91,26 @@ class Info extends \Magento\Framework\App\Action\Action
                         }
                         $response = $productDetails;
                         break;
+                    case 'reset_sync_statuses':
+                        $this->queueHelper->truncate();
+                        foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
+                            $sync_types = array('updates', 'feed');
+                            foreach($sync_types as $sync_type) {
+                              $syncTypeStatus = $this->tagalysConfiguration->getConfig("store:$storeId:" . $sync_type . "_status", true);
+                              $syncTypeStatus['status'] = 'finished';
+                              $feed_status = $this->tagalysConfiguration->setConfig("store:$storeId:" . $sync_type . "_status", json_encode($syncTypeStatus));
+                            }
+                        }
+                        $response = array('reset' => true);
+                        break;
                     case 'trigger_full_product_sync':
                         $this->tagalysApi->log('warn', 'Triggering full products resync via API', array('force_regenerate_thumbnails' => ($params['force_regenerate_thumbnails'] == 'true')));
                         foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
-                            $this->tagalysSync->triggerFeedForStore($storeId, ($params['force_regenerate_thumbnails'] == 'true'));
+                            if (isset($params['products_count'])) {
+                                $this->tagalysSync->triggerFeedForStore($storeId, ($params['force_regenerate_thumbnails'] == 'true'), $params['products_count'], true);
+                            } else {
+                                $this->tagalysSync->triggerFeedForStore($storeId, ($params['force_regenerate_thumbnails'] == 'true'), false, true);
+                            }
                         }
                         $this->queueHelper->truncate();
                         $response = array('triggered' => true);

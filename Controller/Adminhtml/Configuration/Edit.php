@@ -65,11 +65,14 @@
                             if ($setupStatus == 'api_credentials') {
                                 $setupStatus = $this->tagalysConfiguration->setConfig('setup_status', 'sync_settings');
                             }
+                            $redirectToTab = 'sync';
+                        } else {
+                            $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your API credentials. Please email us at cs@tagalys.com so we can resolve this issue.");
+                            $redirectToTab = 'api_credentials';
                         }
-                        $redirectToTab = 'api_credentials';
                     } catch (\Exception $e) {
                         $this->tagalysApi->log('error', 'Error in _saveApiCredentials', array('api_credentials' => $params['api_credentials']));
-                        $this->messageManager->addError("Sorry, something went wrong while saving your API credentials. Please <a href=\"mailto:cs@tagalys.com\">email us</a> so we can resolve this issue.");
+                        $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your API credentials. Please email us at cs@tagalys.com so we can resolve this issue.");
                         $redirectToTab = 'api_credentials';
                     }
                     break;
@@ -82,12 +85,27 @@
                         if (array_key_exists('periodic_full_sync', $params)) {
                             $this->tagalysConfiguration->setConfig('periodic_full_sync', $params['periodic_full_sync']);
                         }
+                        if (array_key_exists('product_image_attribute', $params)) {
+                            $this->tagalysConfiguration->setConfig('product_image_attribute', $params['product_image_attribute']);
+                        }
+                        if (array_key_exists('product_image_hover_attribute', $params)) {
+                            $this->tagalysConfiguration->setConfig('product_image_hover_attribute', $params['product_image_hover_attribute']);
+                        }
+                        if (array_key_exists('max_product_thumbnail_width', $params)) {
+                            $this->tagalysConfiguration->setConfig('max_product_thumbnail_width', $params['max_product_thumbnail_width']);
+                        }
+                        if (array_key_exists('max_product_thumbnail_height', $params)) {
+                            $this->tagalysConfiguration->setConfig('max_product_thumbnail_height', $params['max_product_thumbnail_height']);
+                        }
+                        if (array_key_exists('product_thumbnail_quality', $params)) {
+                            $this->tagalysConfiguration->setConfig('product_thumbnail_quality', $params['product_thumbnail_quality']);
+                        }
                         if (array_key_exists('stores_for_tagalys', $params) && count($params['stores_for_tagalys']) > 0) {
                             $this->tagalysApi->log('info', 'Starting configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
                             $result = $this->tagalysConfiguration->syncClientConfiguration($params['stores_for_tagalys']);
                             if ($result === false) {
                                 $this->tagalysApi->log('error', 'syncClientConfiguration returned false', array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                                $this->messageManager->addError("Sorry, something went wrong while saving your store's configuration. We've logged the issue and we'll get back once we know more. You can contact us here: <a href=\"mailto:cs@tagalys.com\">cs@tagalys.com</a>");
+                                $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your store's configuration. We've logged the issue and we'll get back once we know more. You can contact us here: cs@tagalys.com");
                                 $redirectToTab = 'sync_settings';
                             } else {
                                 $this->tagalysApi->log('info', 'Completed configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
@@ -102,12 +120,12 @@
                                 $redirectToTab = 'sync';
                             }
                         } else {
-                            $this->messageManager->addError("Please choose at least one store to continue.");
+                            $this->messageManager->addErrorMessage("Please choose at least one store to continue.");
                             $redirectToTab = 'sync_settings';
                         }
                     } catch (\Exception $e) {
                         $this->tagalysApi->log('error', 'Error in syncClientConfiguration: ' . $e->getMessage(), array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                        $this->messageManager->addError("Sorry, something went wrong while saving your configuration. Please <a href=\"mailto:cs@tagalys.com\">email us</a> so we can resolve this issue.");
+                        $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your configuration. Please email us at cs@tagalys.com so we can resolve this issue.");
                         $redirectToTab = 'sync_settings';
                     }
                     break;
@@ -135,7 +153,7 @@
                         $result = $this->tagalysConfiguration->syncCategories($params['categories_for_tagalys']);
                         if ($result === false) {
                             $this->tagalysApi->log('error', 'syncCategories returned false', array('categories_for_tagalys' => $params['categories_for_tagalys']));
-                            $this->messageManager->addError("Sorry, something went wrong while saving Listing Pages configuration. We've logged the issue and we'll get back once we know more. You can contact us here: <a href=\"mailto:cs@tagalys.com\">cs@tagalys.com</a>");
+                            $this->messageManager->addErrorMessage("Sorry, something went wrong while saving Listing Pages configuration. We've logged the issue and we'll get back once we know more. You can contact us here: cs@tagalys.com");
                             $redirectToTab = 'listing_pages';
                         } else {
                             if ($result === true) {
@@ -170,7 +188,7 @@
                             $redirectToTab = 'listing_pages';
                         }
                     } else {
-                        $this->messageManager->addError("Please consult with your tech team and double check your settings before proceeding. If you have done so, please check the box.");
+                        $this->messageManager->addErrorMessage("Please consult with your tech team and double check your settings before proceeding. If you have done so, please check the box.");
                     }
                     $redirectToTab = 'listingpages';
                     break;
@@ -195,9 +213,16 @@
                     $redirectToTab = 'support';
                     break;
                 case 'Trigger full products resync now':
+                    $triggered = true;
                     $this->tagalysApi->log('warn', 'Triggering full products resync');
                     foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
-                        $this->tagalysSync->triggerFeedForStore($storeId);
+                        $storeTriggered = $this->tagalysSync->triggerFeedForStore($storeId, true, false, true);
+                        if (!$storeTriggered) {
+                            $triggered = false;
+                        }
+                    }
+                    if (!$triggered) {
+                        $this->messageManager->addErrorMessage("Unable to trigger a full resync. There is already a sync in progress.");
                     }
                     $this->queueHelper->truncate();
                     $redirectToTab = 'support';
@@ -229,7 +254,7 @@
     {
         $result = $this->tagalysApi->identificationCheck(json_decode($params['api_credentials'], true));
         if ($result['result'] != 1) {
-            $this->messageManager->addError("Invalid API Credentials. Please try again. If you continue having issues, please <a href=\"mailto:cs@tagalys.com\">email us</a>.");
+            $this->messageManager->addErrorMessage("Invalid API Credentials. Please try again. If you continue having issues, please email us at cs@tagalys.com.");
             return false;
         }
         // save credentials

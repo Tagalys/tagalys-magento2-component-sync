@@ -43,12 +43,14 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         $this->maxProducts = 500;
     }
 
-    public function triggerFeedForStore($storeId, $forceRegenerateThumbnails = false) {
+    public function triggerFeedForStore($storeId, $forceRegenerateThumbnails = false, $productsCount = false, $abandonIfExisting = false) {
         $feedStatus = $this->tagalysConfiguration->getConfig("store:$storeId:feed_status", true);
-        if ($feedStatus == NULL || in_array($feedStatus['status'], array('finished'))) {
+        if ($feedStatus == NULL || in_array($feedStatus['status'], array('finished')) || $abandonIfExisting) {
             $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
             $timeNow = $utcNow->format(\DateTime::ATOM);
-            $productsCount = $this->getProductsCount($storeId);
+            if ($productsCount == false) {
+                $productsCount = $this->getProductsCount($storeId);
+            }
             $feedStatus = $this->tagalysConfiguration->setConfig("store:$storeId:feed_status", json_encode(array(
                 'status' => 'pending',
                 'filename' => $this->_getNewSyncFileName($storeId, 'feed'),
@@ -59,8 +61,9 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 'force_regenerate_thumbnails' => $forceRegenerateThumbnails
             )));
             $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
+            return true;
         } else {
-
+            return false;
         }
     }
 
