@@ -133,7 +133,7 @@ class Info extends \Magento\Framework\App\Action\Action
                     case 'update_specific_mpage_cache':
                         $this->tagalysApi->log('warn', 'Updating specific Merchandised Page cache via API', array('mpage' => $params['mpage']));
                         foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
-                            $this->tagalysMpages->updateSpecificMpageCache($storeId, $params['mpage']);
+                            $this->tagalysMpages->updateSpecificMpageCache($storeId, (($params['platform'] === true || $params['platform'] === 'true') ? 1 : 0), $params['mpage']);
                         }
                         $response = array('updated' => true);
                         break;
