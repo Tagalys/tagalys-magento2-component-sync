@@ -14,9 +14,14 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Catalog\Model\Product\Media\Config $productMediaConfig,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Framework\Image\AdapterFactory $imageFactory,
+        \Magento\Review\Model\ResourceModel\Review\CollectionFactory $reviewCollectionFactory,
+        \Magento\Review\Model\ResourceModel\Rating\CollectionFactory $ratingCollectionFactory,
         \Magento\Framework\Filesystem $filesystem,
         \Magento\Catalog\Api\CategoryRepositoryInterface $categoryRepository,
-        \Tagalys\Sync\Helper\Configuration $tagalysConfiguration
+        \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
+        \Magento\Swatches\Helper\Data $swatchesHelper,
+        \Magento\Swatches\Helper\Media $swatchesMediaHelper,
+        \Magento\Catalog\Model\Product\Attribute\Repository $productAttributeRepository
     )
     {
         $this->productFactory = $productFactory;
@@ -29,9 +34,14 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $this->productMediaConfig = $productMediaConfig;
         $this->storeManager = $storeManager;
         $this->imageFactory = $imageFactory;
+        $this->reviewCollectionFactory = $reviewCollectionFactory;
+        $this->ratingCollectionFactory = $ratingCollectionFactory;
         $this->filesystem = $filesystem;
         $this->categoryRepository = $categoryRepository;
         $this->tagalysConfiguration = $tagalysConfiguration;
+        $this->swatchesHelper = $swatchesHelper;
+        $this->swatchesMediaHelper = $swatchesMediaHelper;
+        $this->productAttributeRepository = $productAttributeRepository;
     }
 
     public function getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder) {
@@ -149,7 +159,17 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                         $value = $product->getData($attribute->getAttributeCode());
                         $label = $productAttribute->setStoreId($storeId)->getFrontend()->getOption($value);
                         if ($value != null && $label != false) {
-                            $items[] = array('id' => $value, 'label' => $label);
+                            $thisItem = array('id' => $value, 'label' => $label);
+                            if ($this->swatchesHelper->isVisualSwatch($productAttribute)) {
+                                $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$value]);
+                                if (count($swatchConfig) > 0) {
+                                    $thisItem['swatch'] = $swatchConfig[$value]['value'];
+                                    if (strpos($thisItem['swatch'], '#') === false) {
+                                        $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                                    }
+                                }
+                            }
+                            $items[] = $thisItem;
                         }
                     }
                     if (count($items) > 0) {
@@ -172,8 +192,20 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 foreach($associatedProducts as $associatedProduct){
                     if ($associatedProduct->isSaleable()) {
                         if (!in_array($associatedProduct->getData($configurableAttribute), $ids)) {
-                            $ids[] = $associatedProduct->getData($configurableAttribute);
-                            $items[] = array('id' => $associatedProduct->getData($configurableAttribute), 'label' => $associatedProduct->setStoreId($storeId)->getAttributeText($configurableAttribute));
+                            $id = $associatedProduct->getData($configurableAttribute);
+                            $ids[] = $id;
+                            $thisItem = array('id' => $id, 'label' => $associatedProduct->setStoreId($storeId)->getAttributeText($configurableAttribute));
+                            $attr = $this->productAttributeRepository->get($configurableAttribute);
+                            if ($this->swatchesHelper->isVisualSwatch($attr)) {
+                                $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$id]);
+                                if (count($swatchConfig) > 0) {
+                                    $thisItem['swatch'] = $swatchConfig[$id]['value'];
+                                    if (strpos($thisItem['swatch'], '#') === false) {
+                                        $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                                    }
+                                }
+                            }
+                            $items[] = $thisItem;
                         }
                     }
                 }
@@ -270,6 +302,41 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $productForPrices;
     }
 
+    public function addProductRatingsFields($storeId, $product, $productDetails) {
+        $reviews = $this->reviewCollectionFactory->create()->addStoreFilter(
+                $storeId
+            )->addStatusFilter(
+                \Magento\Review\Model\Review::STATUS_APPROVED
+            )->addEntityFilter(
+                'product', $product->getId()
+            )->addRateVotes();
+        $avg = 0;
+        $productRatings = array();
+        foreach($this->ratingCollectionFactory->create() as $rating) {
+            $productRatings['id_'.$rating->getId()] = array();
+        }
+        $productRatingsCount = 0;
+        if (count($reviews) > 0) {
+            foreach($reviews as $review) {
+              foreach($review->getRatingVotes() as $vote) {
+                  $productRatings['id_'.$vote->getRatingId()][] = $vote->getPercent();
+              }
+            }
+            $productRatingsCount = count($reviews);
+        }
+        $productDetails['__magento_ratings_count'] = $productRatingsCount;
+        if (count($reviews) > 0) {
+            foreach($this->ratingCollectionFactory->create() as $rating) {
+                $productDetails['__magento_avg_rating_id_'.$rating->getId()] = round((array_sum($productRatings['id_'.$rating->getId()]) / $productRatingsCount));
+            }
+        } else {
+            foreach($this->ratingCollectionFactory->create() as $rating) {
+                $productDetails['__magento_avg_rating_id_'.$rating->getId()] = 0;
+            }
+        }
+        return $productDetails;
+    }
+
     public function productDetails($id, $storeId, $forceRegenerateThumbnail = false) {
         // $product = $this->productFactory->create()->setStoreId($storeId)->load($id);
         $product = $this->productFactory->create()->setStoreId($storeId)
@@ -277,6 +344,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
 
         $productDetails = array(
             '__id' => $product->getId(),
+            '__magento_type' => $product->getTypeId(),
             'name' => $product->getName(),
             'link' => $this->productFactory->create()->load($id)->getProductUrl(),
             'sku' => $product->getSku(),
@@ -286,6 +354,8 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             'image_url' => $this->getProductImageUrl($this->tagalysConfiguration->getConfig('product_image_attribute'), true, $product, $forceRegenerateThumbnail),
             '__tags' => $this->getProductTags($product, $storeId)
         );
+
+        $productDetails = $this->addProductRatingsFields($storeId, $product, $productDetails);
 
         if ($this->tagalysConfiguration->getConfig("product_image_hover_attribute") != '') {
             $productDetails['image_hover_url'] = $this->getProductImageUrl($this->tagalysConfiguration->getConfig('product_image_hover_attribute'), false, $product, $forceRegenerateThumbnail);

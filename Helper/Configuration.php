@@ -15,6 +15,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Catalog\Model\Product $productModel,
         \Magento\Catalog\Model\Config $configModel,
         \Magento\Catalog\Model\ResourceModel\Product\Attribute\CollectionFactory $collectionFactory,
+        \Magento\Review\Model\ResourceModel\Rating\CollectionFactory $ratingCollectionFactory,
         \Tagalys\Sync\Model\ConfigFactory $configFactory,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollection
@@ -31,6 +32,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $this->collectionFactory = $collectionFactory;
         $this->configModel = $configModel;
         $this->productFactory = $productFactory;
+        $this->ratingCollectionFactory = $ratingCollectionFactory;
         $this->configFactory = $configFactory;
         $this->tagalysApi = $tagalysApi;
         $this->categoryCollection = $categoryCollection;
@@ -236,15 +238,17 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 $categoryModel = $objectManager->create('\Magento\Catalog\Model\Category');
                 $thisCategoryId = end($split);
                 $category = $categoryModel->load($thisCategoryId);
-                $storeCategoriesData[] = array(
-                    "id" => "__categories-$thisCategoryId",
-                    "slug" => $category->getUrl(),
-                    "enabled" => ($listingPagesEnabled && in_array($thisCategoryId, $categoryIdsForTagalys)),
-                    "name" => implode(' / ', array_slice(explode(' / ', $allCategory['label']), 1)),
-                    "filters" => array(array(
-                        "field" => "__categories",
-                        "value" => $thisCategoryId
-                )));
+                if ($listingPagesEnabled && in_array($thisCategoryId, $categoryIdsForTagalys)) {
+                    $storeCategoriesData[] = array(
+                        "id" => "__categories-$thisCategoryId",
+                        "slug" => $category->getUrl(),
+                        "enabled" => ($listingPagesEnabled && in_array($thisCategoryId, $categoryIdsForTagalys)),
+                        "name" => implode(' / ', array_slice(explode(' / ', $allCategory['label']), 1)),
+                        "filters" => array(array(
+                            "field" => "__categories",
+                            "value" => $thisCategoryId
+                    )));
+                }
             }
         }
         return $storeCategoriesData;
@@ -362,6 +366,35 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'filters' => false,
             'search' => false
         );
+        $custom_fields[] = array(
+            'name' => '__magento_type',
+            'label' => 'Magento Product Type',
+            'type' => 'string',
+            'currency' => false,
+            'display' => true,
+            'filters' => false,
+            'search' => false
+        );
+        $custom_fields[] = array(
+            'name' => '__magento_ratings_count',
+            'label' => 'Magento Ratings Count',
+            'type' => 'float',
+            'currency' => false,
+            'display' => true,
+            'filters' => false,
+            'search' => false
+        );
+        foreach($this->ratingCollectionFactory->create() as $rating) {
+            $custom_fields[] = array(
+                'name' => ('__magento_avg_rating_id_'.$rating->getId()),
+                'label' => ('Magento Ratings Average: '.$rating->getRatingCode()),
+                'type' => 'float',
+                'currency' => false,
+                'display' => true,
+                'filters' => false,
+                'search' => false
+            );
+        }
         $magento_tagalys_type_mapping = array(
             'text' => 'string',
             'textarea' => 'string',

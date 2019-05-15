@@ -179,7 +179,7 @@ class Syncsettings extends Generic
         ));
         $imageFieldset->addField('max_product_thumbnail_height', 'text', array(
             'name'      => 'max_product_thumbnail_height',
-            'label'     => __('Maximum product thumbnail width'),
+            'label'     => __('Maximum product thumbnail height'),
             'value'  => $this->tagalysConfiguration->getConfig("max_product_thumbnail_height"),
             'required'  => false,
             'style'   => "width:100%",

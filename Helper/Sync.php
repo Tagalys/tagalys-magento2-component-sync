@@ -380,7 +380,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                         }
                         $timeEnd = time();
                     } catch (\Exception $e) {
-                        $this->tagalysApi->log('error', 'Exception in generateFilePart', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus));
+                        $this->tagalysApi->log('error', 'Exception in generateFilePart', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus, 'message' => $e->getMessage()));
                     }
                     if ($type == 'feed') {
                         $totalRemainingProducts = $syncFileStatus['products_count'] - $syncFileStatus['completed_count'];
