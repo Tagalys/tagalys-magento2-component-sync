@@ -14,9 +14,11 @@ class Info extends \Magento\Framework\App\Action\Action
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Tagalys\Sync\Helper\Sync $tagalysSync,
+        \Tagalys\Sync\Helper\Category $tagalysCategoryHelper,
         \Tagalys\Sync\Helper\Queue $queueHelper,
         \Magento\Framework\View\Page\Config $pageConfig,
         \Tagalys\Sync\Model\ConfigFactory $configFactory,
+        \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
         \Tagalys\Mpages\Model\MpagescacheFactory $mpagescacheFactory,
         \Magento\Framework\Filesystem $filesystem,
         \Tagalys\Sync\Helper\Product $tagalysProduct,
@@ -27,9 +29,11 @@ class Info extends \Magento\Framework\App\Action\Action
         $this->tagalysConfiguration = $tagalysConfiguration;
         $this->tagalysApi = $tagalysApi;
         $this->tagalysSync = $tagalysSync;
+        $this->tagalysCategoryHelper = $tagalysCategoryHelper;
         $this->queueHelper = $queueHelper;
         $this->pageConfig = $pageConfig;
         $this->configFactory = $configFactory;
+        $this->tagalysCategoryFactory = $tagalysCategoryFactory;
         $this->mpagescacheFactory = $mpagescacheFactory;
         $this->filesystem = $filesystem;
         $this->tagalysProduct = $tagalysProduct;
@@ -132,9 +136,48 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'update_specific_mpage_cache':
                         $this->tagalysApi->log('warn', 'Updating specific Merchandised Page cache via API', array('mpage' => $params['mpage']));
-                        foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
-                            $this->tagalysMpages->updateSpecificMpageCache($storeId, (($params['platform'] === true || $params['platform'] === 'true') ? 1 : 0), $params['mpage']);
+                        $renderingMethod = $this->tagalysConfiguration->getConfig('listing_pages:rendering_method');
+                        if (($params['platform'] === true || $params['platform'] === 'true') && $renderingMethod == 'platform') {
+                            // magento category page and rendering method is platform
+                            $this->tagalysCategoryHelper->markPositionsSyncRequired($params['identification']['store_id'], explode('-', $params['id'])[1]);
+                        } else {
+                            // tagalys page or platform page where rendering is tagalys_js
+                            foreach ($this->tagalysConfiguration->getStoresForTagalys() as $storeId) {
+                                $this->tagalysMpages->updateSpecificMpageCache($storeId, (($params['platform'] === true || $params['platform'] === 'true') ? 1 : 0), $params['mpage']);
+                            }
                         }
+                        $response = array('updated' => true);
+                        break;
+                    case 'mark_positions_sync_required_for_categories':
+                        $this->tagalysCategoryHelper->markPositionsSyncRequiredForCategories($params['identification']['store_id'], $params['category_ids']);
+                        $response = array('updated' => true);
+                        break;
+                    case 'get_categories_powered_by_tagalys':
+                        $categories = array();
+                        $tagalysCategoryCollection = $this->tagalysCategoryFactory->create()->getCollection()->setOrder('id', 'ASC');
+                        foreach($tagalysCategoryCollection as $i) {
+                            $fields = array('id', 'category_id', 'store_id', 'positions_synced_at', 'positions_sync_required', 'marked_for_deletion', 'status');
+                            $categoryData = array();
+                            foreach($fields as $field) {
+                                $categoryData[$field] = $i->getData($field);
+                            }
+                            array_push($categories, $categoryData);
+                        }
+                        $response = array('categories' => $categories);
+                        break;
+                    case 'update_tagalys_health_status':
+                        if (isset($params['value']) && in_array($params['value'], array('1', '0'))) {
+                            $this->tagalysConfiguration->setConfig("tagalys:health", $params['value']);
+                        } else {
+                            $this->tagalysSync->updateTagalysHealth();
+                        }
+                        $response = array('health_status' => $this->tagalysConfiguration->getConfig("tagalys:health"));
+                        break;
+                    case 'get_tagalys_health_status':
+                        $response = array('health_status' => $this->tagalysConfiguration->getConfig("tagalys:health"));
+                        break;
+                    case 'update_tagalys_plan_features':
+                        $this->tagalysConfiguration->setConfig('tagalys_plan_features', $params['plan_features'], true);
                         $response = array('updated' => true);
                         break;
                 }

@@ -12,13 +12,15 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Directory\Model\CurrencyFactory $currencyFactory,
         \Magento\Catalog\Model\ProductFactory $productFactory,
         \Magento\Catalog\Model\ResourceModel\Eav\Attribute $attributeFactory,
-        \Magento\Catalog\Model\Product $productModel,
         \Magento\Catalog\Model\Config $configModel,
-        \Magento\Catalog\Model\ResourceModel\Product\Attribute\CollectionFactory $collectionFactory,
+        \Magento\Catalog\Model\Category $categoryModel,
+        \Magento\Catalog\Model\ResourceModel\Product\Attribute\CollectionFactory $attributeCollectionFactory,
         \Magento\Review\Model\ResourceModel\Rating\CollectionFactory $ratingCollectionFactory,
         \Tagalys\Sync\Model\ConfigFactory $configFactory,
         \Tagalys\Sync\Helper\Api $tagalysApi,
-        \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollection
+        \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollection,
+        \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
+        \Magento\Framework\Event\Manager $eventManager
     )
     {
         $this->datetime = $datetime;
@@ -28,14 +30,16 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $this->currency = $currency;
         $this->currencyFactory = $currencyFactory;
         $this->attributeFactory = $attributeFactory;
-        $this->productModel = $productModel;
-        $this->collectionFactory = $collectionFactory;
+        $this->attributeCollectionFactory = $attributeCollectionFactory;
         $this->configModel = $configModel;
+        $this->categoryModel = $categoryModel;
         $this->productFactory = $productFactory;
         $this->ratingCollectionFactory = $ratingCollectionFactory;
         $this->configFactory = $configFactory;
         $this->tagalysApi = $tagalysApi;
         $this->categoryCollection = $categoryCollection;
+        $this->tagalysCategoryFactory = $tagalysCategoryFactory;
+        $this->eventManager = $eventManager;
     }
 
     public function isTagalysEnabledForStore($storeId, $module = false) {
@@ -91,9 +95,12 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'category_ids'=> '[]',
                 'listing_pages:override_layout'=> '1',
                 'listing_pages:override_layout_name'=> '1column',
+                'listing_pages:position_sort_direction' => 'asc',
                 'product_image_attribute' => 'small_image',
                 'product_image_hover_attribute' => '',
-                'product_thumbnail_quality' => '80'
+                'product_thumbnail_quality' => '80',
+                'category_pages_rendering_method' => 'magento',
+                'tagalys_plan_features' => '{"number_of_category_pages":5}'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
@@ -105,6 +112,11 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             return json_decode($configValue, true);
         }
         return $configValue;
+    }
+
+    public function getPlanFeature($feature) {
+      $features = $this->getConfig('tagalys_plan_features', true);
+      return $features[$feature];
     }
 
     public function setConfig($configPath, $configValue, $jsonEncode = false) {
@@ -146,34 +158,191 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         return array();
     }
 
-    public function getCategoriesForTagalys() {
-        $categoriesForTagalys = $this->getConfig("categories", true);
-        
-        if ($categoriesForTagalys != NULL) {
-            if (!is_array($categoriesForTagalys)) {
-                $categoriesForTagalys = array($categoriesForTagalys);
-            }
-            return $categoriesForTagalys;
+    public function getCategoriesForTagalys($storeId) {
+        $tagalysCategories = $this->tagalysCategoryFactory->create()->getCollection()
+            ->addFieldToFilter('store_id', $storeId)
+            ->addFieldToFilter('marked_for_deletion', '0')
+            ->addFieldToSelect('category_id');
+        $categoriesForTagalys = array();
+        foreach($tagalysCategories as $tagalysCategory){
+            $category = $this->categoryModel->load($tagalysCategory->get('category_id')['category_id']);
+            $categoriesForTagalys[] = $category->getPath();
         }
-        return array();
+        return $categoriesForTagalys;
     }
 
-    public function getAllCategories() {
-        $categories = $this->categoryCollection->create()->addAttributeToSelect('*')->load();
+    public function getAllCategories($storeId) {
+        $originalStoreId = $this->storeManager->getStore()->getId();
+        $this->storeManager->setCurrentStore($storeId);
+        $rootCategoryId = $this->storeManager->getStore($storeId)->getRootCategoryId();
+        $categories = $this->categoryCollection->create()
+            ->setStoreId($storeId)
+            ->addFieldToFilter('is_active', 1)
+            ->addAttributeToFilter('path', array('like' => "1/{$rootCategoryId}/%"))
+            ->addAttributeToSelect('*');
         foreach ($categories as $category) {
-            $pathNames = array();
             $pathIds = explode('/', $category->getPath());
             if (count($pathIds) > 2) {
-                $path = $this->categoryCollection->create()->addAttributeToSelect('*')->addAttributeToFilter('entity_id', array('in' => $pathIds));
-                foreach($path as $i => $path_category) {
-                    if ($i != 1) { // skip root category
-                        $pathNames[] = $path_category->getName();
-                    }
-                }
-                $output[] = array('value' => implode('/', $pathIds), 'label' => implode(' / ', $pathNames));
+                $label = $this->getCategoryName($category);
+                $output[] = array('value' => implode('/', $pathIds), 'label' => $label, 'static_block_only' => ($category->getDisplayMode()=='PAGE'));
             }
         }
+        $this->storeManager->setCurrentStore($originalStoreId);
         return $output;
+    }
+
+    public function getCategoryName($category) {
+        $unorderedPathNames = array();
+        $pathNames = array();
+        $pathIds = explode('/', $category->getPath());
+        if (count($pathIds) > 2) {
+            $path = $this->categoryCollection->create()->addAttributeToSelect('*')->addFieldToFilter('entity_id', array('in' => $pathIds));
+            foreach($path as $i => $path_category) {
+              if ($i != 1) { // skip root category
+                $unorderedPathNames[$path_category->getId()] = $path_category->getName();
+              }
+            }
+            foreach($pathIds as $id){
+                if($id != 1){
+                    $pathNames[] = $unorderedPathNames[$id];
+                }
+            }
+        }
+        return implode(' |>| ', $pathNames);
+    }
+
+    public function getStoreTreeData(){
+        $stores = $this->getAllWebsiteStores();
+        $stores_for_tagalys = $this->getStoresForTagalys();
+        $tree = array();
+        foreach($stores as $store){
+            $selected = false;
+            foreach($stores_for_tagalys as $selected_store){
+                if($store['value']==$selected_store){
+                    $selected = true;
+                    $tree[]=array('id'=>$store['value'], 'value'=>$store['value'], 'text'=>$store['label'], 'state'=>array('selected'=>true));
+                }
+            }
+            if(!$selected){
+                $tree[]=array('id'=>$store['value'], 'value'=>$store['value'], 'text'=>$store['label'], 'state' => array('selected' => false));
+            }
+        }
+        return json_encode($tree);
+    }
+
+    public function getCategoryTreeData($storeId){
+        $flat_category_list = $this->getAllCategories($storeId);
+        $selected_categories = $this->getCategoriesForTagalys($storeId);
+        $tree = array();
+        foreach ($flat_category_list as $category){
+            foreach($selected_categories as $selected_category){
+                if ($selected_category == $category['value']) {
+                    $category['selected'] = true;
+                    $category_sync_status = $this->tagalysCategoryFactory->create()
+                        ->getCollection()
+                        ->addFieldToFilter('store_id', $storeId)
+                        ->addFieldToFilter('category_id', $selected_category)
+                        ->addFieldToSelect(array('status', 'positions_synced_at'))
+                        ->getFirstItem();
+                    $category['status'] = $category_sync_status['status'];
+                    $category['positions_synced_at'] = $category_sync_status['positions_synced_at'];
+                }
+            }
+            $category_id_path = explode('/',$category['value']);
+            if($category_id_path[0] == 1){
+                array_splice($category_id_path, 0, 1);
+            }
+            $category_label_path = explode(' |>| ',$category['label']);
+            $tree = $this->constructTree($category_id_path, $category_label_path, $tree, $category);
+        }
+        return json_encode($tree);
+    }
+
+    private function constructTree($category_id_path, $category_label_path, $children, $category_object){
+        // var_dump($category_object);
+        if(count($category_id_path)==1){
+        // Append to array
+        $node_exist = false;
+        for($i=0;$i<count($children);$i++){
+            if($children[$i]['id']==$category_id_path[0]){
+            $node_exist = true;
+            $children[$i]['value'] = $category_object['value'];
+            $children[$i]['state'] = array();
+            $children[$i]['state']['disabled'] = $category_object['static_block_only'];
+            if(array_key_exists('selected', $category_object) && $category_object['selected']==true){
+                $children[$i]['state']['selected'] = true;
+                $iconAndText = $this->getCategoryStatusIconAndText($category_object);
+                $children[$i]['icon'] = $iconAndText['icon'];
+                if ($iconAndText['icon'] != 'hidden') {
+                    $children[$i]['text'] .= $iconAndText['text'];
+                }
+            }
+            }
+        }
+        if(!$node_exist){
+            $node = array(
+                'id'=>$category_id_path[0], 
+                'value'=>$category_object['value'],
+                'text'=>$category_label_path[0].($category_object['static_block_only'] ? ' (Static block only)' : ''), 
+                'state'=> array('selected'=> (array_key_exists('selected',$category_object) && $category_object['selected']==true) ? true : false, 'disabled' => $category_object['static_block_only']),
+                'children'=>array(),
+                'icon' => $this->getCategoryStatusIconAndText($category_object)
+            );
+            $iconAndText = $this->getCategoryStatusIconAndText($category_object);
+            $node['icon'] = $iconAndText['icon'];
+            if ($iconAndText['icon'] != 'hidden') {
+                $node['text'] .= $iconAndText['text'];
+            }
+            $children[] = $node;
+        }
+        } else {
+        // Find the parent to pass to
+        $child_exist = false;
+        for($i=0;$i<count($children);$i++){
+            if($children[$i]['id']==$category_id_path[0]){
+            $child_exist = true;
+            $children[$i]['children']=$this->constructTree(
+                array_slice($category_id_path, 1), 
+                array_slice($category_label_path, 1), 
+                $children[$i]['children'], 
+                $category_object
+            );
+            break;
+            }
+        }
+        if(!$child_exist){
+            // Create the parent
+            $children[]=array(
+                'id'=>$category_id_path[0], 
+                'value'=> 'NOT_AVAILABLE',
+                'text' => $category_label_path[0].($category_object['static_block_only'] ? ' (Static block only)' : ''),
+                'state' => array('disabled' => true, 'opened' => true), // Only for ROOT (eg. defautl category) categories
+                'children' => $this->constructTree(array_slice($category_id_path, 1), array_slice($category_label_path, 1), array(), $category_object),
+                'icon' => 'hidden'
+            );
+        }
+        }
+        return $children;
+    }
+
+    private function getCategoryStatusIconAndText($categoryObject){
+        if(!array_key_exists('status',$categoryObject)){
+            $categoryObject['status'] = '';
+        }
+        switch($categoryObject['status']){
+            case 'pending_sync':
+                return array('icon' => 'fa fa-refresh', 'text' => ' (Sync Pending)');
+            case 'failed':
+                return array('icon' => 'fa fa-exclamation-triangle', 'text' => ' (No Products Found)');
+            case 'powered_by_tagalys':
+                if ($categoryObject['positions_synced_at'] == NULL) {
+                return array('icon' => 'fa fa-refresh', 'text' => ' (Sync Pending)');
+                } else {
+                return array('icon' => 'fa fa-bolt', 'text' => ' (Powered by Tagalys)');
+                }
+            default:
+                return array('icon' => 'hidden', 'text' => '');
+        }
     }
 
     public function getAllWebsiteStores() {
@@ -186,72 +355,6 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             }
         }
         return $website_stores;
-    }
-
-    public function syncCategories($categoryPathsForTagalys = false) {
-        if ($categoryPathsForTagalys === false) {
-            $categoryPathsForTagalys = $this->getCategoriesForTagalys();
-        }
-        $categoryIdsForTagalys = array();
-        foreach ($categoryPathsForTagalys as $categoryPathForTagalys) {
-            $split = explode('/', $categoryPathForTagalys);
-            $categoryIdsForTagalys[] = end($split);
-        }
-
-        $storeIds = $this->getStoresForTagalys();
-        $allCategories = $this->getAllCategories();
-
-        $platformPages = array('stores' => array());
-        foreach ($storeIds as $index => $storeId) {
-            $platformPages['stores'][] = array('id' => $storeId, 'platform_pages' => $this->getStoreCategories($storeId, $categoryIdsForTagalys));
-        }
-
-        $tagalysResponse = $this->tagalysApi->clientApiCall('/v1/mpages/_sync_platform_pages', $platformPages);
-        if ($tagalysResponse === false) {
-            return false;
-        }
-        if ($tagalysResponse['result'] === true) {
-            if (count($tagalysResponse['skipped_pages']) === 0) {
-                return true;
-            } else {
-                $skippedIds = array();
-                foreach ($tagalysResponse['skipped_pages'] as $key => $skippedPage) {
-                    $split = explode('-', $skippedPage);
-                    $skippedIds[] = intval(end($split));
-                }
-                return $skippedIds;
-            }
-        }
-        return false;
-    }
-
-    public function getStoreCategories($storeId, $categoryIdsForTagalys) {
-        $rootCategoryId = $this->storeManager->getStore($storeId)->getRootCategoryId();
-        $storeCategoriesData = array();
-        $allCategories = $this->getAllCategories();
-        $listingPagesEnabled = $this->getConfig('module:listingpages:enabled');
-        foreach ($allCategories as $allCategory) {
-            if (strpos($allCategory['value'], "/$rootCategoryId/") !== false) {
-                // $storeId has this category
-                $split = explode('/', $allCategory['value']);
-                $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-                $categoryModel = $objectManager->create('\Magento\Catalog\Model\Category');
-                $thisCategoryId = end($split);
-                $category = $categoryModel->load($thisCategoryId);
-                if ($listingPagesEnabled && in_array($thisCategoryId, $categoryIdsForTagalys)) {
-                    $storeCategoriesData[] = array(
-                        "id" => "__categories-$thisCategoryId",
-                        "slug" => $category->getUrl(),
-                        "enabled" => ($listingPagesEnabled && in_array($thisCategoryId, $categoryIdsForTagalys)),
-                        "name" => implode(' / ', array_slice(explode(' / ', $allCategory['label']), 1)),
-                        "filters" => array(array(
-                            "field" => "__categories",
-                            "value" => $thisCategoryId
-                    )));
-                }
-            }
-        }
-        return $storeCategoriesData;
     }
 
     public function syncClientConfiguration($storeIds = false) {
@@ -280,6 +383,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $store = $this->storeManager->getStore($storeId);
         $tagSetsAndCustomFields = $this->getTagSetsAndCustomFields($store->getId());
         $productsCount = $this->productFactory->create()->getCollection()->setStoreId($storeId)->addStoreFilter($storeId)->addAttributeToFilter('status', 1)->addAttributeToFilter('visibility', array("neq" => 1))->count();
+        $storeUrl = $this->storeManager->getStore($storeId)->getUrl();
+        $storeDomain = parse_url($storeUrl)['host'];
         $configuration = array(
             'id' => $storeId,
             'label' => $store->getName(),
@@ -290,8 +395,14 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'fields' => $tagSetsAndCustomFields['custom_fields'],
             'tag_sets' => $tagSetsAndCustomFields['tag_sets'],
             'sort_options' =>  $this->getSortOptions($storeId),
-            'products_count' => $productsCount
+            'products_count' => $productsCount,
+            'domain' => $storeDomain
         );
+
+        $configurationObj = new \Magento\Framework\DataObject(array('configuration' => $configuration, 'store_id' => $storeId));
+        $this->eventManager->dispatch('tagalys_read_store_configuration', ['tgls_data' => $configurationObj]);
+        $configuration = $configurationObj->getConfiguration();
+
         return $configuration;
     }
 
@@ -367,6 +478,26 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'search' => false
         );
         $custom_fields[] = array(
+            'name' => '__inventory_total',
+            'label' => 'Inventory - Total',
+            'type' => 'float',
+            'currency' => false,
+            'display' => false,
+            'filters' => false,
+            'dashboard_filters' => true,
+            'search' => false
+        );
+        $custom_fields[] = array(
+            'name' => '__inventory_average',
+            'label' => 'Inventory - Average',
+            'type' => 'float',
+            'currency' => false,
+            'display' => false,
+            'filters' => false,
+            'dashboard_filters' => true,
+            'search' => false
+        );
+        $custom_fields[] = array(
             'name' => '__magento_type',
             'label' => 'Magento Product Type',
             'type' => 'string',
@@ -404,11 +535,15 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'select' => 'string',
             'price' => 'float'
         );
-        $collection = $this->collectionFactory->create()->addVisibleFilter();
-        foreach($collection as $attribute) {
+        $attributes = $this->attributeCollectionFactory->create()->addVisibleFilter();
+        foreach($attributes as $attribute) {
             if (!in_array($attribute->getAttributeCode(), array('status', 'tax_class_id'))) {
+                $isWhitelisted = false;
+                if ((bool)$attribute->getIsUserDefined() == false && in_array($attribute->getAttributecode(), array('visibility', 'url_key'))) {
+                    $isWhitelisted = true;
+                }
                 $isForDisplay = ((bool)$attribute->getUsedInProductListing() && (bool)$attribute->getIsUserDefined());
-                if ($attribute->getIsFilterable() || $attribute->getIsSearchable() || $isForDisplay) {
+                if ($attribute->getIsFilterable() || $attribute->getIsSearchable() || $isForDisplay || $isWhitelisted) {
                     if ($attribute->getFrontendInput() != 'multiselect') {
                         if (!in_array($attribute->getAttributecode(), $tagalys_core_fields)) {
                             $isPriceField = ($attribute->getFrontendInput() == "price" );

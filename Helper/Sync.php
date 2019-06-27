@@ -12,6 +12,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Tagalys\Sync\Helper\Product $tagalysProduct,
+        \Tagalys\Sync\Helper\Category $tagalysCategory,
         \Magento\Catalog\Model\ProductFactory $productFactory,
         \Magento\Framework\Math\Random $random,
         \Magento\Framework\UrlInterface $urlInterface,
@@ -21,13 +22,10 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         \Tagalys\Sync\Helper\Queue $queueHelper
     )
     {
-        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
-        $this->tagalysLogger = new \Zend\Log\Logger();
-        $this->tagalysLogger->addWriter($writer);
-
         $this->tagalysConfiguration = $tagalysConfiguration;
         $this->tagalysApi = $tagalysApi;
         $this->tagalysProduct = $tagalysProduct;
+        $this->tagalysCategory = $tagalysCategory;
         $this->productFactory = $productFactory;
         $this->random = $random;
         $this->urlInterface = $urlInterface;
@@ -46,6 +44,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
     public function triggerFeedForStore($storeId, $forceRegenerateThumbnails = false, $productsCount = false, $abandonIfExisting = false) {
         $feedStatus = $this->tagalysConfiguration->getConfig("store:$storeId:feed_status", true);
         if ($feedStatus == NULL || in_array($feedStatus['status'], array('finished')) || $abandonIfExisting) {
+            $this->queueHelper->truncate();
             $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
             $timeNow = $utcNow->format(\DateTime::ATOM);
             if ($productsCount == false) {
@@ -98,22 +97,71 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         return $collection;
     }
 
-    public function sync($maxProducts = 500) {
+    public function runMaintenance($force = false) {
+        $stores = $this->tagalysConfiguration->getStoresForTagalys();
+        foreach ($stores as $i => $storeId) {
+            $periodic_full_sync = $this->tagalysConfiguration->getConfig("periodic_full_sync");
+            $resync_required = $this->tagalysConfiguration->getConfig("store:$storeId:resync_required");
+            if ($periodic_full_sync == '1' || $resync_required == '1' || $force) {
+                $syncTypes = array('updates', 'feed');
+                foreach ($syncTypes as $syncType) {
+                  $syncTypeStatus = $this->tagalysConfiguration->getConfig("store:$storeId:" . $syncType . "_status", true);
+                  $syncTypeStatus['status'] = 'finished';
+                  $this->tagalysConfiguration->setConfig("store:$storeId:" . $syncType . "_status", $syncTypeStatus, true);
+                }
+                $this->triggerFeedForStore($storeId, false, false, true);
+                $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
+            }
+        }
+    }
+
+    public function sync($maxProducts = 500, $max_categories = 50) {
         $this->maxProducts = $maxProducts;
         if ($this->perPage > $maxProducts) {
             $this->perPage = $maxProducts;
         }
         $stores = $this->tagalysConfiguration->getStoresForTagalys();
         if ($stores != NULL) {
+
+            // 1. update health
+            $this->updateTagalysHealth();
+
+            // 2. update configuration if required
             $this->_checkAndSyncConfig();
 
-            // get product ids from update queue to be processed in this cron instance
+            // 3. sync pending categories
+            $this->tagalysCategory->sync($max_categories);
+
+            // 4. check queue size and (clear_queue, trigger_feed) if required
+            $remainingProductUpdates = $this->queueFactory->create()->getCollection()->count();
+            $clearQueueAndTriggerResync = false;
+            if ($remainingProductUpdates > 1) { // don't waste query cycles if updates are under 100
+                foreach($stores as $i => $storeId) {
+                    $totalProducts = $this->getProductsCount($storeId);
+                    $cutoff = 0.33 * $totalProducts;
+                    if ($remainingProductUpdates > $cutoff) {
+                        $clearQueueAndTriggerResync = true;
+                        break;
+                    }
+                }
+                if ($clearQueueAndTriggerResync) {
+                    $this->queueHelper->truncate();
+                    foreach ($stores as $i => $storeId) {
+                        $this->triggerFeedForStore($storeId, false, false, true);
+                    }
+                    $this->tagalysApi->log('warn', 'Clearing updates queue and triggering full products sync', array('remainingProductUpdates' => $remainingProductUpdates));
+                }
+            }
+
+            // 5. get product ids from update queue to be processed in this cron instance
             $productIdsFromUpdatesQueueForCronInstance = $this->_productIdsFromUpdatesQueueForCronInstance();
             // products from obervers are added to queue without any checks. so add related configurable products if necessary
             foreach($productIdsFromUpdatesQueueForCronInstance as $productId) {
                 $this->queueHelper->queuePrimaryProductIdFor($productId);
 
             }
+
+            // 6. perform feed, updates sync (updates only if feed sync is finished)
             $updatesPerformed = array();
             foreach($stores as $i => $storeId) {
                 $updatesPerformed[$storeId] = $this->_syncForStore($storeId, $productIdsFromUpdatesQueueForCronInstance);
@@ -131,6 +179,22 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
             }
         }
         return true;
+    }
+
+    public function updateTagalysHealth() {
+        $storesForTagalys = $this->tagalysConfiguration->getStoresForTagalys();
+        if ($storesForTagalys != null) {
+            foreach ($storesForTagalys as $storeId) {
+                $response = $this->tagalysApi->storeApiCall($storeId.'', '/v1/mpages/_health', array('timeout' => 10));
+                if ($response != false && $response['total'] > 0) {
+                    $this->tagalysConfiguration->setConfig("tagalys:health", '1');
+                    return true;
+                } else {
+                    $this->tagalysConfiguration->setConfig("tagalys:health", '0');
+                    return false;
+                }
+            }
+        }
     }
 
     public function cachePopularSearches() {
@@ -156,7 +220,10 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
     public function _checkAndSyncConfig() {
         $configSyncRequired = $this->tagalysConfiguration->getConfig('config_sync_required');
         if ($configSyncRequired == '1') {
-            $this->tagalysConfiguration->syncClientConfiguration();
+            $response = $this->tagalysConfiguration->syncClientConfiguration();
+            if ($response === false || $response['result'] === false) {
+                $this->tagalysApi->log('error', 'syncClientConfiguration returned false', array());
+            }
             $this->tagalysConfiguration->setConfig('config_sync_required', '0');
         }
     }
@@ -448,10 +515,13 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 
             $triggerDatetime = strtotime($syncFileStatus['triggered_at']);
             $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
+            $storeUrl = $this->storeManager->getStore($storeId)->getUrl();
+            $storeDomain = parse_url($storeUrl)['host'];
             $data = array(
                 'link' => $linkToFile,
                 'updates_count' => $syncFileStatus['products_count'],
                 'store' => $storeId,
+                'store_domain' => $storeDomain,
                 'seconds_since_reference' => ($utcNow->getTimestamp() - $triggerDatetime),
                 'callback_url' => $this->frontUrlHelper->getUrl('tagalys/sync/callback/')
             );
@@ -593,6 +663,34 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 } else {
                     $thisStore['updates_status'] = 'Nothing to update';
                 }
+            }
+
+            // categories
+            $listingPagesEnabled = $this->tagalysConfiguration->getConfig("module:listingpages:enabled");
+            $totalEnabled = $this->tagalysCategory->getEnabledCount($storeId);
+            if ($listingPagesEnabled == '1' && $totalEnabled > 0) {
+                $pendingSync = $this->tagalysCategory->getPendingSyncCount($storeId);
+                $requiringPositionsSync = $this->tagalysCategory->getRequiringPositionsSyncCount($storeId);
+                $listingPagesStatusMessages = array();
+                if ($pendingSync > 0) {
+                    array_push($listingPagesStatusMessages, 'Pending sync to Tagalys: '.$pendingSync);
+                }
+                if ($requiringPositionsSync > 0) {
+                    // $indexerProcess = Mage::getSingleton('index/indexer')->getProcessByCode('catalog_category_product');
+                    // $indexerDone = ($indexerProcess->getStatus() == Mage_Index_Model_Process::STATUS_PENDING);
+                    $indexerDone = true;
+                    if ($indexerDone) {
+                        array_push($listingPagesStatusMessages, 'Positions update required: ' . $requiringPositionsSync);
+                    } else {
+                        array_push($listingPagesStatusMessages, 'Positions update required: ' . $requiringPositionsSync . '. Waiting for Category Products Index.');
+                    }
+                }
+                if (empty($listingPagesStatusMessages)) {
+                    array_push($listingPagesStatusMessages, 'Finished');
+                }
+                $thisStore['listing_pages_status'] = implode(". ", $listingPagesStatusMessages);
+            } else {
+                $thisStore['listing_pages_status'] = 'Not enabled';
             }
 
             $syncStatus['stores'][$storeId] = $thisStore;

@@ -83,16 +83,21 @@ class Syncsettings extends Generic
         );
 
         $syncSettingsFieldset->addField('stores_for_tagalys', 'multiselect', array(
-            'label' => __('Choose stores for which you want to enable Tagalys features'),
             'name'      => 'stores_for_tagalys',
             'onclick' => "return false;",
             'onchange' => "return false;",
             'value'  => $this->tagalysConfiguration->getStoresForTagalys(),
             'values' => $this->tagalysConfiguration->getAllWebsiteStores(),
-            'style' => "width:100%; height: 125px;",
+            'style' => "width:100%; height: 125px; display: none;",
             'disabled' => false,
             'readonly' => false,
             'tabindex' => 1
+        ));
+
+        $store_tree_data = htmlspecialchars($this->tagalysConfiguration->getStoreTreeData(), ENT_QUOTES, 'UTF-8');
+        $syncSettingsFieldset->addField('store_jtree_wrap', 'note', array(
+            'label' => __('Choose stores for which you want to enable Tagalys features'),
+            'text'=>"<input id='stores-jtree-q'/><div id='stores-jtree' data-tree='{$store_tree_data}' ></div>"
         ));
 
         $syncSettingsFieldset->addField('periodic_full_sync', 'select', array(

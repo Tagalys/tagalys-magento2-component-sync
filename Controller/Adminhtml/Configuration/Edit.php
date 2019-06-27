@@ -24,19 +24,27 @@
         \Magento\Backend\App\Action\Context $context,
         \Magento\Framework\View\Result\PageFactory $resultPageFactory,
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
+        \Tagalys\Sync\Helper\Category $tagalysCategoryHelper,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Tagalys\Sync\Helper\Sync $tagalysSync,
         \Tagalys\Sync\Helper\Queue $queueHelper,
-        \Tagalys\Mpages\Helper\Mpages $tagalysMpages
+        \Tagalys\Mpages\Helper\Mpages $tagalysMpages,
+        \Magento\Store\Model\StoreManagerInterface $storeManager,
+        \Magento\Catalog\Model\CategoryRepository $categoryRepository,
+        \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory
     ) {
         parent::__construct($context);
         $this->resultPageFactory = $resultPageFactory;
         $this->tagalysConfiguration = $tagalysConfiguration;
+        $this->tagalysCategoryHelper = $tagalysCategoryHelper;
         $this->tagalysApi = $tagalysApi;
         $this->tagalysSync = $tagalysSync;
         $this->messageManager = $context->getMessageManager();
         $this->queueHelper = $queueHelper;
         $this->tagalysMpages = $tagalysMpages;
+        $this->storeManager = $storeManager;
+        $this->categoryRepository = $categoryRepository;
+        $this->tagalysCategoryFactory = $tagalysCategoryFactory;
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
         $this->logger = new \Zend\Log\Logger();
         $this->logger->addWriter($writer);
@@ -102,8 +110,8 @@
                         }
                         if (array_key_exists('stores_for_tagalys', $params) && count($params['stores_for_tagalys']) > 0) {
                             $this->tagalysApi->log('info', 'Starting configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                            $result = $this->tagalysConfiguration->syncClientConfiguration($params['stores_for_tagalys']);
-                            if ($result === false) {
+                            $response = $this->tagalysConfiguration->syncClientConfiguration($params['stores_for_tagalys']);
+                            if ($response === false || $response['result'] === false) {
                                 $this->tagalysApi->log('error', 'syncClientConfiguration returned false', array('stores_for_tagalys' => $params['stores_for_tagalys']));
                                 $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your store's configuration. We've logged the issue and we'll get back once we know more. You can contact us here: cs@tagalys.com");
                                 $redirectToTab = 'sync_settings';
@@ -137,58 +145,79 @@
                     $redirectToTab = 'search';
                     break;
                 case 'Save Listing Pages Settings':
-                    if (array_key_exists('verified_with_tech_team', $params) && $params['verified_with_tech_team'] == '1') {
-                        if (array_key_exists('override_layout_for_listing_pages', $params) && $params['override_layout_for_listing_pages'] == '1') {
-                            $this->tagalysConfiguration->setConfig('listing_pages:override_layout', $params['override_layout_for_listing_pages']);
-                        } else {
-                            $this->tagalysConfiguration->setConfig('listing_pages:override_layout', '0');
-                        }
-                        $this->tagalysConfiguration->setConfig('listing_pages:override_layout_name', $params['override_layout_name_for_listing_pages']);
+                    if ($params['enable_listingpages'] == '1' && $params['understand_and_agree'] == 'I agree') {
                         $this->tagalysConfiguration->setConfig('module:listingpages:enabled', $params['enable_listingpages']);
-                        $this->tagalysApi->log('warn', 'listingpages:enabled:'.$params['enable_listingpages']);
-                        if (!array_key_exists('categories_for_tagalys', $params)) {
-                            $params['categories_for_tagalys'] = array();
-                        }
-                        $this->tagalysApi->log('info', 'Starting Listing Pages sync', array('categories_for_tagalys' => $params['categories_for_tagalys']));
-                        $result = $this->tagalysConfiguration->syncCategories($params['categories_for_tagalys']);
-                        if ($result === false) {
-                            $this->tagalysApi->log('error', 'syncCategories returned false', array('categories_for_tagalys' => $params['categories_for_tagalys']));
-                            $this->messageManager->addErrorMessage("Sorry, something went wrong while saving Listing Pages configuration. We've logged the issue and we'll get back once we know more. You can contact us here: cs@tagalys.com");
-                            $redirectToTab = 'listing_pages';
-                        } else {
-                            if ($result === true) {
-                                $this->tagalysApi->log('info', 'Completed Listing Pages sync', array('categories_for_tagalys' => $params['categories_for_tagalys']));
-                                $this->tagalysConfiguration->setConfig('categories', $params['categories_for_tagalys'], true);
-                                $categoryIds = array();
-                                foreach($params['categories_for_tagalys'] as $i => $categoryPath) {
+                        $this->messageManager->addNoticeMessage("Settings have been saved. Selected categories will be visible in your Tagalys Dashboard within 10 minutes and product positions on these categories will be updated within 15 minutes unless specificed below.");
+                        $this->tagalysConfiguration->setConfig('listing_pages:rendering_method', $params['category_pages_rendering_method']);
+                        $this->tagalysConfiguration->setConfig('listing_pages:position_sort_direction', $params['position_sort_direction']);
+                        $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);
+                        
+                        foreach($params['stores_for_tagalys'] as $storeId) {
+                            $originalStoreId = $this->storeManager->getStore()->getId();
+                            $this->storeManager->setCurrentStore($storeId);
+                            $this->tagalysApi->storeApiCall($storeId . '', '/v1/stores/update_platform_details', array(
+                                'platform_details' => array(
+                                    'platform_pages_rendering_method' => $params['category_pages_rendering_method']
+                                )
+                            ));
+                            if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {
+                                $params[ 'categories_for_tagalys_store_' . $storeId] = array();
+                            }
+                            $categoryIds = array();
+                            if (count($params['categories_for_tagalys_store_'. $storeId]) > 0) {
+                                foreach($params['categories_for_tagalys_store_' . $storeId] as $categoryPath) {
                                     $path = explode('/', $categoryPath);
                                     $categoryIds[] = intval(end($path));
                                 }
-                                $this->tagalysConfiguration->setConfig('category_ids', $categoryIds, true);
-                            } else {
-                                // $result is an array of skipped category ids
-                                $fitlered_categories_for_tagalys = array();
-                                $filtered_category_ids_for_tagalys = array();
-                                $this->tagalysApi->log('info', 'Completed Listing Pages sync', array('categories_for_tagalys' => $params['categories_for_tagalys'], 'skipped_categories' => $result));
-                                foreach($params['categories_for_tagalys'] as $i => $categoryPath) {
-                                    $path = explode('/', $categoryPath);
-                                    $categoryId = intval(end($path));
-                                    if (in_array($categoryId, $result)) {
-                                        // skipped page
+                                foreach ($categoryIds as $categoryId) {
+                                    $category = $this->categoryRepository->get($categoryId, $storeId);
+                                    if ($category->getDisplayMode() == 'PAGE') {
+                                        // skip
+                                        $firstItem = $this->tagalysCategoryFactory->create()->getCollection()
+                                            ->addFieldToFilter('store_id', $storeId)
+                                            ->addFieldToFilter('category_id', $categoryId)
+                                            ->getFirstItem();
+                                        if ($id = $firstItem->getId()) {
+                                            $firstItem->addData(array('marked_for_deletion' => 1))->save();
+                                        }
                                     } else {
-                                        // okay...
-                                        $fitlered_categories_for_tagalys[] = $categoryPath;
-                                        $filtered_category_ids_for_tagalys[] = $categoryId;
+                                        $this->tagalysCategoryHelper->createOrUpdateWithData($storeId, $categoryId, array('positions_sync_required' => 0, 'marked_for_deletion' => 0, 'status' => 'pending_sync'), array('marked_for_deletion' => 0));
                                     }
                                 }
-                                $this->tagalysConfiguration->setConfig('categories', $fitlered_categories_for_tagalys, true);
-                                $this->tagalysConfiguration->setConfig('category_ids', $filtered_category_ids_for_tagalys, true);
-                                $this->messageManager->addNoticeMessage("Some pages cannot be powered by Tagalys as there are no products available to create them. They have been automatically unselected from the list.");
                             }
-                            $redirectToTab = 'listing_pages';
+                            $this->tagalysCategoryHelper->markStoreCategoryIdsForDeletionExcept($storeId, $categoryIds);
+                            $this->storeManager->setCurrentStore($originalStoreId);
+                        }
+                        
+                        if ($params['category_pages_rendering_method'] == 'platform') {
+                            $this->tagalysConfiguration->setConfig('listing_pages:categories_via_tagalys_js_enabled', '0');
+                            if (array_key_exists('same_or_similar_products_across_all_stores', $params)) {
+                                $this->tagalysConfiguration->setConfig('listing_pages:same_or_similar_products_across_all_stores', $params['same_or_similar_products_across_all_stores']);
+                                $this->tagalysConfiguration->setConfig('listing_pages:store_id_for_category_pages', $params['store_id_for_category_pages']);
+                            }
+                            foreach($params['stores_for_tagalys'] as $storeId) {
+                                $originalStoreId = $this->storeManager->getStore()->getId();
+                                $this->storeManager->setCurrentStore($storeId);
+                                if (
+                                    array_key_exists('same_or_similar_products_across_all_stores', $params) && $params['same_or_similar_products_across_all_stores'] == '1' &&
+                                    $storeId.'' != $params['store_id_for_category_pages'].''
+                                ) {
+                                    $this->tagalysCategoryHelper->markStoreCategoryIdsForDeletionExcept($storeId, array());
+                                    continue;
+                                }
+
+                                $this->storeManager->setCurrentStore($originalStoreId);
+                            }
+                        } else {
+                            $this->tagalysConfiguration->setConfig('listing_pages:categories_via_tagalys_js_enabled', '1');
+                            $this->tagalysConfiguration->setConfig('listing_pages:override_layout', $params['override_layout_for_listing_pages']);
+                            $this->tagalysConfiguration->setConfig('listing_pages:override_layout_name', $params['override_layout_name_for_listing_pages']);
                         }
                     } else {
-                        $this->messageManager->addErrorMessage("Please consult with your tech team and double check your settings before proceeding. If you have done so, please check the box.");
+                        if ($params['enable_listingpages'] == '1') {
+                            $this->messageManager->addErrorMessage("Settings have not been updated because you did not type 'I agree'.");
+                        }
+                        $this->tagalysConfiguration->setConfig('listing_pages:categories_via_tagalys_js_enabled', '0');
                     }
                     $redirectToTab = 'listingpages';
                     break;

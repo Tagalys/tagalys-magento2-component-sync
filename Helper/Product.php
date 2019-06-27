@@ -21,7 +21,8 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Magento\Swatches\Helper\Data $swatchesHelper,
         \Magento\Swatches\Helper\Media $swatchesMediaHelper,
-        \Magento\Catalog\Model\Product\Attribute\Repository $productAttributeRepository
+        \Magento\Catalog\Model\Product\Attribute\Repository $productAttributeRepository,
+        \Magento\Framework\Event\Manager $eventManager
     )
     {
         $this->productFactory = $productFactory;
@@ -42,6 +43,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $this->swatchesHelper = $swatchesHelper;
         $this->swatchesMediaHelper = $swatchesMediaHelper;
         $this->productAttributeRepository = $productAttributeRepository;
+        $this->eventManager = $eventManager;
     }
 
     public function getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder) {
@@ -111,8 +113,12 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         }
         foreach ($attributes as $attribute) {
             if (!in_array($attribute->getAttributeCode(), $attributesToIgnore)) {
+                $isWhitelisted = false;
+                if ((bool)$attribute->getIsUserDefined() == false && in_array($attribute->getAttributecode(), array('url_key'))) {
+                    $isWhitelisted = true;
+                }
                 $isForDisplay = ((bool)$attribute->getUsedInProductListing() && (bool)$attribute->getIsUserDefined());
-                if ($attribute->getIsFilterable() || $attribute->getIsSearchable() || $isForDisplay) {
+                if ($attribute->getIsFilterable() || $attribute->getIsSearchable() || $isForDisplay || $isWhitelisted) {
 
                     if (!in_array($attribute->getAttributeCode(), array('status', 'tax_class_id')) && $attribute->getFrontendInput() != 'multiselect') {
                         $attributeValue = $attribute->getFrontend()->getValue($product);
@@ -139,8 +145,12 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         // other attributes
         $attributes = $product->getTypeInstance()->getEditableAttributes($product);
         foreach ($attributes as $attribute) {
+            $isWhitelisted = false;
+            if ((bool)$attribute->getIsUserDefined() == false && in_array($attribute->getAttributecode(), array('visibility'))) {
+                $isWhitelisted = true;
+            }
             $isForDisplay = ((bool)$attribute->getUsedInProductListing() && (bool)$attribute->getIsUserDefined());
-            if (!in_array($attribute->getAttributeCode(), array('status', 'tax_class_id')) && !in_array($attribute->getFrontendInput(), array('boolean')) && ($attribute->getIsFilterable() || $attribute->getIsSearchable() || $isForDisplay)) {
+            if (!in_array($attribute->getAttributeCode(), array('status', 'tax_class_id')) && !in_array($attribute->getFrontendInput(), array('boolean')) && ($attribute->getIsFilterable() || $attribute->getIsSearchable() || $isForDisplay || $isWhitelisted)) {
                 $productAttribute = $product->getResource()->getAttribute($attribute->getAttributeCode());
                 if ($productAttribute->usesSource()) {
                     // select, multi-select
@@ -190,7 +200,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 $items = array();
                 $ids = array();
                 foreach($associatedProducts as $associatedProduct){
-                    if ($associatedProduct->isSaleable()) {
+                    if ($this->productFactory->create()->load($associatedProduct->getId())->isSaleable()) {
                         if (!in_array($associatedProduct->getData($configurableAttribute), $ids)) {
                             $id = $associatedProduct->getData($configurableAttribute);
                             $ids[] = $id;
@@ -338,6 +348,8 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function productDetails($id, $storeId, $forceRegenerateThumbnail = false) {
+        $originalStoreId = $this->storeManager->getStore()->getId();
+        $this->storeManager->setCurrentStore($storeId);
         // $product = $this->productFactory->create()->setStoreId($storeId)->load($id);
         $product = $this->productFactory->create()->setStoreId($storeId)
             ->load($id);
@@ -346,7 +358,8 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             '__id' => $product->getId(),
             '__magento_type' => $product->getTypeId(),
             'name' => $product->getName(),
-            'link' => $this->productFactory->create()->load($id)->getProductUrl(),
+            // 'link' => $this->productFactory->create()->load($id)->setStoreId($storeId)->getUrlInStore(),
+            'link' => $product->getProductUrl(),
             'sku' => $product->getSku(),
             'scheduled_updates' => array(),
             'introduced_at' => date(\DateTime::ATOM, strtotime($product->getCreatedAt())),
@@ -354,6 +367,29 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             'image_url' => $this->getProductImageUrl($this->tagalysConfiguration->getConfig('product_image_attribute'), true, $product, $forceRegenerateThumbnail),
             '__tags' => $this->getProductTags($product, $storeId)
         );
+
+        if ($productDetails['__magento_type'] == 'simple') {
+            $inventory = (int)$product->getExtensionAttributes()->getStockItem()->getQty();
+            $productDetails['__inventory_total'] = $inventory;
+            $productDetails['__inventory_average'] = $inventory;
+        }
+        if ($productDetails['__magento_type'] == 'configurable') {
+            $totalInventory = 0;
+            $totalAssociatedProducts = 0;
+            $associatedProducts = $this->linkManagement->getChildren($product->getSku());
+            foreach($associatedProducts as $associatedProduct){
+                $totalAssociatedProducts += 1;
+                if ($this->productFactory->create()->load($associatedProduct->getId())->isSaleable()) {
+                    $totalInventory += (int)$this->productFactory->create()->load($associatedProduct->getId())->getExtensionAttributes()->getStockItem()->getQty();
+                }
+            }
+            $productDetails['__inventory_total'] = $totalInventory;
+            if ($totalAssociatedProducts > 0) {
+                $productDetails['__inventory_average'] = round($totalInventory / $totalAssociatedProducts, 2);
+            } else {
+                $productDetails['__inventory_average'] = 0;
+            }
+        }
 
         $productDetails = $this->addProductRatingsFields($storeId, $product, $productDetails);
 
@@ -446,6 +482,12 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 }
             }
         }
+
+        $productDetailsObj = new \Magento\Framework\DataObject(array('product_details' => $productDetails));
+        $this->eventManager->dispatch('tagalys_read_product_details', ['tgls_data' => $productDetailsObj]);
+        $productDetails = $productDetailsObj->getProductDetails();
+
+        $this->storeManager->setCurrentStore($originalStoreId);
 
         return $productDetails;
     }

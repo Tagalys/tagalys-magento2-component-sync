@@ -127,6 +127,10 @@ class Sync extends Generic
                 'label' => 'Updates Status',
                 'text' => '<span id="store_'.$storeId.'_note_updates_status"></span>'
             ));
+            $storeSyncFieldset->addField("store_{$storeId}_note_listing_pages_status", 'note', array(
+                'label' => 'Category Pages',
+                'text' => '<span id="store_'.$storeId.'_note_listing_pages_status"></span>'
+            ));
         }
 
         

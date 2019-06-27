@@ -87,6 +87,87 @@ class InstallSchema implements InstallSchemaInterface
                 ->setOption('charset', 'utf8');
             $installer->getConnection()->createTable($queueTable);
         }
+
+        $categoryTableName = $installer->getTable('tagalys_category');
+        if ($installer->getConnection()->isTableExists($categoryTableName) != true) {
+            $categoryTable = $installer->getConnection()
+                ->newTable($categoryTableName)
+                ->addColumn(
+                    'id',
+                    Table::TYPE_INTEGER,
+                    11,
+                    [
+                        'identity' => true,
+                        'unsigned' => true,
+                        'nullable' => false,
+                        'primary' => true
+                    ],
+                    'ID'
+                )
+                ->addColumn(
+                    'category_id',
+                    Table::TYPE_INTEGER,
+                    50,
+                    [
+                        'nullable' => false
+                    ],
+                    'Category ID'
+                )
+                ->addColumn(
+                    'store_id',
+                    Table::TYPE_INTEGER,
+                    50,
+                    [
+                        'nullable' => false
+                    ],
+                    'Store ID'
+                )
+                ->addColumn(
+                    'positions_synced_at',
+                    Table::TYPE_DATETIME,
+                    null,
+                    [],
+                    'Positions last synced at'
+                )
+                ->addColumn(
+                    'positions_sync_required',
+                    Table::TYPE_BOOLEAN,
+                    null,
+                    [
+                        'nullable' => false,
+                        'default' => '0'
+                    ],
+                    'Positions synced required?'
+                )
+                ->addColumn(
+                    'marked_for_deletion',
+                    Table::TYPE_BOOLEAN,
+                    null,
+                    [
+                        'nullable' => false,
+                        'default' => '0'
+                    ],
+                    'Marked for deletion'
+                )
+                ->addColumn(
+                    'status',
+                    Table::TYPE_TEXT,
+                    255,
+                    [
+                        'nullable' => false,
+                        'default' => ''
+                    ],
+                    'Status'
+                )
+                ->setComment('Tagalys Categories Table')
+                ->setOption('type', 'InnoDB')
+                ->setOption('charset', 'utf8');
+            $categoryTable->addIndex(
+                $installer->getIdxName('tagalys_category', ['store_id', 'category_id']),
+                ['store_id', 'category_id']
+            );
+            $installer->getConnection()->createTable($categoryTable);
+        }
  
         $installer->endSetup();
     }
