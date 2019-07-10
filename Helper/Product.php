@@ -22,7 +22,8 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Swatches\Helper\Data $swatchesHelper,
         \Magento\Swatches\Helper\Media $swatchesMediaHelper,
         \Magento\Catalog\Model\Product\Attribute\Repository $productAttributeRepository,
-        \Magento\Framework\Event\Manager $eventManager
+        \Magento\Framework\Event\Manager $eventManager,
+        \Magento\CatalogInventory\Api\StockRegistryInterface $stockRegistry
     )
     {
         $this->productFactory = $productFactory;
@@ -44,6 +45,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $this->swatchesMediaHelper = $swatchesMediaHelper;
         $this->productAttributeRepository = $productAttributeRepository;
         $this->eventManager = $eventManager;
+        $this->stockRegistry = $stockRegistry;
     }
 
     public function getPlaceholderImageUrl($imageAttributeCode, $allowPlaceholder) {
@@ -114,7 +116,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         foreach ($attributes as $attribute) {
             if (!in_array($attribute->getAttributeCode(), $attributesToIgnore)) {
                 $isWhitelisted = false;
-                if ((bool)$attribute->getIsUserDefined() == false && in_array($attribute->getAttributecode(), array('url_key'))) {
+                if ((bool)$attribute->getIsUserDefined() == false && in_array($attribute->getAttributeCode(), array('url_key'))) {
                     $isWhitelisted = true;
                 }
                 $isForDisplay = ((bool)$attribute->getUsedInProductListing() && (bool)$attribute->getIsUserDefined());
@@ -136,7 +138,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $productFields;
     }
 
-    public function getProductTags($product, $storeId) {
+    public function getDirectProductTags($product, $storeId) {
         $productTags = array();
 
         // categories
@@ -188,43 +190,6 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 }
             }
         }
-
-        if ($product->getTypeId() === "configurable") {
-            $configurableAttributes = array_map(function ($el) {
-                return $el['attribute_code'];
-            }, $product->getTypeInstance(true)->getConfigurableAttributesAsArray($product));
-
-            $associatedProducts = $this->linkManagement->getChildren($product->getSku());
-
-            foreach($configurableAttributes as $configurableAttribute) {
-                $items = array();
-                $ids = array();
-                foreach($associatedProducts as $associatedProduct){
-                    if ($this->productFactory->create()->load($associatedProduct->getId())->isSaleable()) {
-                        if (!in_array($associatedProduct->getData($configurableAttribute), $ids)) {
-                            $id = $associatedProduct->getData($configurableAttribute);
-                            $ids[] = $id;
-                            $thisItem = array('id' => $id, 'label' => $associatedProduct->setStoreId($storeId)->getAttributeText($configurableAttribute));
-                            $attr = $this->productAttributeRepository->get($configurableAttribute);
-                            if ($this->swatchesHelper->isVisualSwatch($attr)) {
-                                $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$id]);
-                                if (count($swatchConfig) > 0) {
-                                    $thisItem['swatch'] = $swatchConfig[$id]['value'];
-                                    if (strpos($thisItem['swatch'], '#') === false) {
-                                        $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
-                                    }
-                                }
-                            }
-                            $items[] = $thisItem;
-                        }
-                    }
-                }
-                if (count($items) > 0) {
-                    array_push($productTags, array( "tag_set" => array("id" => $configurableAttribute, "label" => $product->getResource()->getAttribute($configurableAttribute)->getStoreLabel($storeId)), "items" => $items));
-                }
-            }
-        }
-
         return $productTags;
     }
 
@@ -280,23 +245,6 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
     public function getProductForPrices($product, $storeId) {
         $productForPrices = $product;
         switch($product->getTypeId()) {
-            case 'configurable':
-                $minSalePrice = null;
-                foreach($this->linkManagement->getChildren($product->getSku()) as $connectedProduct) {
-                    $connectedProductId = $connectedProduct->getId();
-                    if ($connectedProductId == NULL) {
-                        $p = $this->productFactory->create()->setStoreId($storeId);
-                        $connectedProduct = $p->load($p->getIdBySku($connectedProduct->getSku()));
-                    } else {
-                        $connectedProduct = $this->productFactory->create()->setStoreId($storeId)->load($connectedProductId);
-                    }
-                    $thisSalePrice = $connectedProduct->getFinalPrice();
-                    if ($minSalePrice == null || $minSalePrice > $thisSalePrice) {
-                        $minSalePrice = $thisSalePrice;
-                        $productForPrices = $connectedProduct;
-                    }
-                }
-                break;
             case 'grouped':
                 $minSalePrice = null;
                 foreach($product->getTypeInstance()->getAssociatedProductIds($product) as $connectedProductId) {
@@ -347,48 +295,114 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         return $productDetails;
     }
 
-    public function productDetails($id, $storeId, $forceRegenerateThumbnail = false) {
+    public function addAssociatedProductDetails($product, $productDetails, $storeId){
+        $anyAssociatedProductInStock = false;
+        $totalInventory = 0;
+        $totalAssociatedProducts = 0;
+        $productForPrice = $product;
+        $minSalePrice = PHP_INT_MAX;
+        
+        $configurableAttributes = array_map(function ($el) {
+            return $el['attribute_code'];
+        }, $product->getTypeInstance(true)->getConfigurableAttributesAsArray($product));
+        $associatedProducts = $this->linkManagement->getChildren($product->getSku());
+        $ids = array();
+        foreach($associatedProducts as $p){
+            $ids[]=$p->getId();
+        }
+        $associatedProducts = $this->productFactory->create()->getCollection()
+            ->setStoreId($storeId)
+            ->addStoreFilter($storeId)
+            ->addAttributeToFilter('status', 1)
+            ->addAttributeToFilter('entity_id', array('in' => $ids))
+            ->addFinalPrice()
+            ->addAttributeToSelect('*');
+
+        $tagItems = array();
+        $hash = array();
+        
+        foreach($associatedProducts as $associatedProduct){
+            $totalAssociatedProducts += 1;
+            $stockItem = $this->stockRegistry->getStockItem($associatedProduct->getId());
+            $isInStock = $stockItem->getIsInStock();
+            
+            // Getting tag sets
+            if ($isInStock) {
+                $anyAssociatedProductInStock = true;
+                $salePrice = $associatedProduct->getPriceInfo()->getPrice('final_price')->getAmount()->getValue();
+                if($minSalePrice > $salePrice) {
+                    $minSalePrice = $salePrice;
+                    $productForPrice = $associatedProduct;
+                }
+                $totalInventory += (int)$stockItem->getQty();
+                foreach($configurableAttributes as $configurableAttribute) {
+                    $id = $associatedProduct->getData($configurableAttribute);
+                    if(!isset($hash[$id])) {
+                        $hash[$id] = true;
+                        $thisItem = array('id' => $id, 'label' => $associatedProduct->setStoreId($storeId)->getAttributeText($configurableAttribute));
+                        $attr = $this->productAttributeRepository->get($configurableAttribute);
+                        if ($this->swatchesHelper->isVisualSwatch($attr)) {
+                            $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$id]);
+                            if (count($swatchConfig) > 0) {
+                                $thisItem['swatch'] = $swatchConfig[$id]['value'];
+                                if (strpos($thisItem['swatch'], '#') === false) {
+                                    $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                                }
+                            }
+                        }
+                        $tagItems[$configurableAttribute][] = $thisItem;
+                    }
+                }
+            }
+        }
+        $productDetails['__inventory_total'] = $totalInventory;
+        if ($totalAssociatedProducts > 0) {
+            $productDetails['__inventory_average'] = round($totalInventory / $totalAssociatedProducts, 2);
+        } else {
+            $productDetails['__inventory_average'] = 0;
+        }
+
+        $productDetails['in_stock'] = $anyAssociatedProductInStock;
+        
+        // Reformat tag sets
+        foreach($tagItems as $configurableAttribute => $items){
+            array_push($productDetails['__tags'], array("tag_set" => array("id" => $configurableAttribute, "label" => $product->getResource()->getAttribute($configurableAttribute)->getStoreLabel($storeId)), "items" => $items));
+        }
+        return array('details' => $productDetails, 'product_for_price'=>$productForPrice);
+    }
+
+    public function productDetails($product, $storeId, $forceRegenerateThumbnail = false) {
         $originalStoreId = $this->storeManager->getStore()->getId();
         $this->storeManager->setCurrentStore($storeId);
-        // $product = $this->productFactory->create()->setStoreId($storeId)->load($id);
-        $product = $this->productFactory->create()->setStoreId($storeId)
-            ->load($id);
-
+        $stockItem = $this->stockRegistry->getStockItem($product->getId());
+        $productForPrice = $product;
         $productDetails = array(
             '__id' => $product->getId(),
             '__magento_type' => $product->getTypeId(),
             'name' => $product->getName(),
-            // 'link' => $this->productFactory->create()->load($id)->setStoreId($storeId)->getUrlInStore(),
             'link' => $product->getProductUrl(),
             'sku' => $product->getSku(),
             'scheduled_updates' => array(),
             'introduced_at' => date(\DateTime::ATOM, strtotime($product->getCreatedAt())),
-            'in_stock' => $product->isSaleable(),
+            'in_stock' => $stockItem->getIsInStock(),
             'image_url' => $this->getProductImageUrl($this->tagalysConfiguration->getConfig('product_image_attribute'), true, $product, $forceRegenerateThumbnail),
-            '__tags' => $this->getProductTags($product, $storeId)
+            '__tags' => $this->getDirectProductTags($product, $storeId)
         );
 
         if ($productDetails['__magento_type'] == 'simple') {
-            $inventory = (int)$product->getExtensionAttributes()->getStockItem()->getQty();
+            $inventory = (int)$stockItem->getQty();
             $productDetails['__inventory_total'] = $inventory;
             $productDetails['__inventory_average'] = $inventory;
         }
+
         if ($productDetails['__magento_type'] == 'configurable') {
-            $totalInventory = 0;
-            $totalAssociatedProducts = 0;
-            $associatedProducts = $this->linkManagement->getChildren($product->getSku());
-            foreach($associatedProducts as $associatedProduct){
-                $totalAssociatedProducts += 1;
-                if ($this->productFactory->create()->load($associatedProduct->getId())->isSaleable()) {
-                    $totalInventory += (int)$this->productFactory->create()->load($associatedProduct->getId())->getExtensionAttributes()->getStockItem()->getQty();
-                }
-            }
-            $productDetails['__inventory_total'] = $totalInventory;
-            if ($totalAssociatedProducts > 0) {
-                $productDetails['__inventory_average'] = round($totalInventory / $totalAssociatedProducts, 2);
-            } else {
-                $productDetails['__inventory_average'] = 0;
-            }
+            $result = $this->addAssociatedProductDetails($product, $productDetails, $storeId);
+            $productDetails = $result['details'];
+            $productForPrice = $result['product_for_price'];
+        }
+
+        if ($productDetails['__magento_type'] == 'grouped') {
+            $productForPrice = $this->getProductForPrices($product, $storeId);
         }
 
         $productDetails = $this->addProductRatingsFields($storeId, $product, $productDetails);
@@ -409,15 +423,17 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
             $productDetails['price'] = $product->getPriceModel()->getTotalPrices($product, 'min', 1);
             $productDetails['sale_price'] = $product->getPriceModel()->getTotalPrices($product, 'min', 1);
         } else {
-            $productForPrices = $this->getProductForPrices($product, $storeId);
-            $productDetails['price'] = $productForPrices->getPrice();
-            $productDetails['sale_price'] = $productForPrices->getFinalPrice();
-            if ($productForPrices->getSpecialFromDate() != null) {
-                $specialPriceFromDatetime = new \DateTime($productForPrices->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+            // https://magento.stackexchange.com/a/152692/80853
+            $productDetails['price'] = $productForPrice->getPriceInfo()->getPrice('regular_price')->getAmount()->getValue();
+            $productDetails['sale_price'] = $productForPrice->getPriceInfo()->getPrice('final_price')->getAmount()->getValue();
+            // ___
+            /** Changing productForPrices->product (check if works) */
+            if ($productForPrice->getSpecialFromDate() != null) {
+                $specialPriceFromDatetime = new \DateTime($productForPrice->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
                 $currentDatetime = new \DateTime("now", new \DateTimeZone('UTC'));
                 if ($currentDatetime->getTimestamp() >= $specialPriceFromDatetime->getTimestamp()) {
-                    if ($productForPrices->getSpecialToDate() != null) {
-                        $specialPriceToDatetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                    if ($productForPrice->getSpecialToDate() != null) {
+                        $specialPriceToDatetime = new \DateTime($productForPrice->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
                         if ($currentDatetime->getTimestamp() <= ($specialPriceToDatetime->getTimestamp() + 24*60*60 - 1)) {
                             // sale price is currently valid. record to date
                             array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $specialPriceToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
@@ -429,12 +445,12 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                     }
                 } else {
                     // future sale - record other sale price and from/to datetimes
-                    $specialPrice = $productForPrices->getSpecialPrice();
+                    $specialPrice = $productForPrice->getSpecialPrice();
                     if ($specialPrice != null && $specialPrice > 0) {
-                        $specialPriceFromDatetime = new \DateTime($productForPrices->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
-                        array_push($productDetails['scheduled_updates'], array('at' => $specialPriceFromDatetime->format('Y-m-d H:i:sP'), 'updates' => array('sale_price' => $productForPrices->getSpecialPrice())));
-                        if ($productForPrices->getSpecialToDate() != null) {
-                            $specialPriceToDatetime = new \DateTime($productForPrices->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                        $specialPriceFromDatetime = new \DateTime($productForPrice->getSpecialFromDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
+                        array_push($productDetails['scheduled_updates'], array('at' => $specialPriceFromDatetime->format('Y-m-d H:i:sP'), 'updates' => array('sale_price' => $productForPrice->getSpecialPrice())));
+                        if ($productForPrice->getSpecialToDate() != null) {
+                            $specialPriceToDatetime = new \DateTime($productForPrice->getSpecialToDate(), new \DateTimeZone($this->timezoneInterface->getConfigTimezone()));
                             array_push($productDetails['scheduled_updates'], array('at' => str_replace('00:00:00', '23:59:59', $specialPriceToDatetime->format('Y-m-d H:i:sP')), 'updates' => array('sale_price' => $productDetails['price'])));
                         }
                     }

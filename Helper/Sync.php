@@ -5,9 +5,6 @@ namespace Tagalys\Sync\Helper;
 class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 {
     public function __construct(
-        \Magento\Framework\App\ProductMetadataInterface $productMetadataInterface,
-        \Magento\Framework\Module\ModuleListInterface $moduleListInterface,
-        \Tagalys\Sync\Model\ConfigFactory $configFactory,
         \Magento\Framework\Filesystem $filesystem,
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
@@ -90,7 +87,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
             ->addStoreFilter($storeId)
             ->addAttributeToFilter('status', 1)
             ->addAttributeToFilter('visibility', array("neq" => 1))
-            ->addAttributeToSelect('entity_id');
+            ->addAttributeToSelect('*');
         if ($type == 'updates') {
             $collection = $collection->addAttributeToFilter('entity_id', array('in' => $productIdsFromUpdatesQueueForCronInstance));
         }
@@ -289,7 +286,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function _updateProductsCount($storeId, $type, $collection) {
-        $productsCount = $collection->count();
+        $productsCount = $collection->getSize();
         $syncFileStatus = $this->tagalysConfiguration->getConfig("store:$storeId:{$type}_status", true);
         if ($syncFileStatus != NULL) {
             $syncFileStatus['products_count'] = $productsCount;
@@ -360,7 +357,6 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 } else {
                     $collection = $this->_getCollection($storeId, $type);
                 }
-                $select = $collection->getSelect();
 
                 // set updated_at as this is used to check for stale processes
                 $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
@@ -395,29 +391,28 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 
 
                 $cronInstanceCompletedProducts = 0;
+                $cronCurrentlyCompleted = 0;
 
                 $timeStart = time();
                 if ($productsCount == 0) {
                     $fileGenerationCompleted = true;
                 } else {
                     $fileGenerationCompleted = false;
-
-                    if ($type == 'feed') {
-                        $totalRemainingProducts = $syncFileStatus['products_count'] - $syncFileStatus['completed_count'];
-                        $cronInstanceTotalProducts = min($totalRemainingProducts, $this->maxProducts);
-                    }
-                    if ($type == 'updates') {
-                        $cronInstanceTotalProducts = $productsCount; // already limited to product_ids_from_updates_queue_for_cron_instance
-                    }
-                    // avoid infinite loops due to undetected bugs / unexpected issues
-                    // use a circut breaker with limit of 26 (1000 products per cron instance and 50 products per page = 25. so 26 is not expected.)
-                    $circuitBreaker = 0;
+                    $cronCurrentlyCompleted = 0;
                     try {
-                        while($cronInstanceCompletedProducts < $cronInstanceTotalProducts && $circuitBreaker < 26) {
-                            $circuitBreaker += 1;
-                            $products = $select->limit($this->perPage, $syncFileStatus['completed_count'])->query();
+                        while ($cronCurrentlyCompleted < $this->maxProducts) {
+                            if (isset($syncFileStatus['completed_count']) && $syncFileStatus['completed_count'] > 0) {
+                                $currentPage = (int) (($syncFileStatus['completed_count'] / $this->perPage) + 1);
+                            } else {
+                                $currentPage = 1;
+                            }
                             $triggerDatetime = strtotime($syncFileStatus['triggered_at']);
-                            foreach($products as $product) {
+                            if ($type == 'feed') {
+                                $collection->clear()->setPageSize($this->perPage)->setCurPage($currentPage)->load();
+                            }
+                            $loopCurrentlyCompleted = 0;
+                            $productsToWrite = array();
+                            foreach($collection as $product) {
                                 $forceRegenerateThumbnail = false;
                                 if ($type == 'updates') {
                                     $forceRegenerateThumbnail = true;
@@ -426,7 +421,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                                         $forceRegenerateThumbnail = $syncFileStatus['force_regenerate_thumbnails'];
                                     }
                                 }
-                                $productDetails = (array) $this->tagalysProduct->productDetails($product['entity_id'], $storeId, $forceRegenerateThumbnail);
+                                $productDetails = (array) $this->tagalysProduct->productDetails($product, $storeId, $forceRegenerateThumbnail);
 
                                 if (array_key_exists('scheduled_updates', $productDetails) && count($productDetails['scheduled_updates']) > 0) {
                                     for($i = 0; $i < count($productDetails['scheduled_updates']); $i++) {
@@ -435,32 +430,28 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                                         $productDetails['scheduled_updates'][$i]['in'] = $atDatetime - $triggerDatetime;
                                     }
                                 }
-                                
-                                $stream->write(json_encode(array("perform" => "index", "payload" => $productDetails)) ."\r\n");
-                                $syncFileStatus['completed_count'] += 1;
-                                $cronInstanceCompletedProducts += 1;
-                                $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
-                                $timeNow = $utcNow->format(\DateTime::ATOM);
-                                $syncFileStatus['updated_at'] = $timeNow;
-                                $this->tagalysConfiguration->setConfig("store:$storeId:{$type}_status", $syncFileStatus, true);
+
+                                array_push($productsToWrite, json_encode(array("perform" => "index", "payload" => $productDetails)));
+                                $loopCurrentlyCompleted += 1;
+                            }
+                            foreach($productsToWrite as $productToWrite) {
+                                $stream->write($productToWrite."\r\n");
+                            }
+                            $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
+                            $timeNow = $utcNow->format(\DateTime::ATOM);
+                            $syncFileStatus['updated_at'] = $timeNow;
+                            $syncFileStatus['completed_count'] += $loopCurrentlyCompleted;
+                            $cronCurrentlyCompleted += $loopCurrentlyCompleted;
+                            $this->tagalysConfiguration->setConfig("store:$storeId:{$type}_status", $syncFileStatus, true);
+                            $timeEnd = time();
+
+                            if ($type == 'updates' || $loopCurrentlyCompleted < $this->perPage) {
+                                $fileGenerationCompleted = true;
+                                break;
                             }
                         }
-                        $timeEnd = time();
                     } catch (\Exception $e) {
                         $this->tagalysApi->log('error', 'Exception in generateFilePart', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus, 'message' => $e->getMessage()));
-                    }
-                    if ($type == 'feed') {
-                        $totalRemainingProducts = $syncFileStatus['products_count'] - $syncFileStatus['completed_count'];
-                        // $circuitBreaker of 26 is not expected unless we're counting wrong. in that case, complete
-                        if ($totalRemainingProducts <= 0 || $circuitBreaker >= 26) {
-                            $fileGenerationCompleted = true;
-                            if ($circuitBreaker >= 26) {
-                                $this->tagalysApi->log('error', 'Circuit breaker triggered. Sync file marked as completed.', array('pid' => $pid, 'storeId' => $storeId, 'syncFileStatus' => $syncFileStatus));
-                            }
-                        }
-                    }
-                    if ($type == 'updates') {
-                        $fileGenerationCompleted = true; // updates are sent at every cron instance even if queue is larger
                     }
                 }
                 $updatesPerformed = true;
@@ -477,9 +468,9 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 if ($fileGenerationCompleted) {
                     $syncFileStatus['status'] = 'generated_file';
                     $syncFileStatus['completed_count'] += count($deletedIds);
-                    $this->tagalysApi->log('info', 'Completed writing ' . $syncFileStatus['completed_count'] . ' products to '. $type .' file. Last batch of ' . $cronInstanceCompletedProducts . ' took ' . $timeElapsed . ' seconds.', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus));
+                    $this->tagalysApi->log('info', 'Completed writing ' . $syncFileStatus['completed_count'] . ' products to '. $type .' file. Last batch of ' . $cronCurrentlyCompleted . ' took ' . $timeElapsed . ' seconds.', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus));
                 } else {
-                    $this->tagalysApi->log('info', 'Written ' . $syncFileStatus['completed_count'] . ' out of ' . $syncFileStatus['products_count'] . ' products to '. $type .' file. Last batch of ' . $cronInstanceCompletedProducts . ' took ' . $timeElapsed . ' seconds', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus));
+                    $this->tagalysApi->log('info', 'Written ' . $syncFileStatus['completed_count'] . ' out of ' . $syncFileStatus['products_count'] . ' products to '. $type .' file. Last batch of ' . $cronCurrentlyCompleted . ' took ' . $timeElapsed . ' seconds', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus));
                     $syncFileStatus['status'] = 'pending';
                 }
                 $this->tagalysConfiguration->setConfig("store:$storeId:{$type}_status", $syncFileStatus, true);

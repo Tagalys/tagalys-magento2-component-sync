@@ -43,7 +43,7 @@ class UpdateProductPositions extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         try {
-            $this->appState->setAreaCode('frontend');
+            $this->appState->setAreaCode('adminhtml');
         } catch (\Magento\Framework\Exception\LocalizedException $exception) {
             // do nothing
         }

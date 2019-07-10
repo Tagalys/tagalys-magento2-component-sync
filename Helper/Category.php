@@ -386,10 +386,11 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         }
       }
     }
-    $this->cacheInterface->clean('cat_c_' . $categoryId);
+    $category = $this->categoryFactory->create()->load($categoryId);
+    $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
 
     $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => $categoryId));
-    $this->eventManager->dispatch( 'tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
+    $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
     /**
      * API update for 1 product: To trigger magento to clear cache
      * Should be done after SQL update(Just to be safe so that reindexing is triggered after all positions are updated)
@@ -461,10 +462,11 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         }
       }
     }
-    $this->cacheInterface->clean('cat_c_' . $categoryId);
+    $category = $this->categoryFactory->create()->load($categoryId);
+    $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
 
     $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => $categoryId));
-    $this->eventManager->dispatch( 'tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
+    $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
     // $event_data_array = array('category_id' => (int)$categoryId);
     // $varien_object = new Varien_Object($event_data_array);
     // $objectManager->get('Magento\Framework\Event\Manager')->dispatchEvent('tagalys_category_positions_updated', array('varien_obj' => $varien_object));
