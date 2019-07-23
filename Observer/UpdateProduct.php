@@ -4,14 +4,24 @@ namespace Tagalys\Sync\Observer;
 class UpdateProduct implements \Magento\Framework\Event\ObserverInterface
 {
     public function __construct(
-        \Tagalys\Sync\Helper\Queue $queueHelper
+        \Tagalys\Sync\Helper\Queue $queueHelper,
+        \Tagalys\Sync\Helper\Category $tagalysCategory
     )
     {
         $this->queueHelper = $queueHelper;
+        $this->tagalysCategory = $tagalysCategory;
     }
     public function execute(\Magento\Framework\Event\Observer $observer)
     {
-        $productId = $observer->getProduct()->getId();
-        $this->queueHelper->insertUnique($productId);
+        try {
+            $product = $observer->getProduct();
+            $this->queueHelper->insertUnique($product->getId());
+            $categoryIds = null;
+            try{
+                $categoryIds = $product->getCategoryIds();
+            } catch(Exception $ignored) {}
+            $this->tagalysCategory->updateProductCategoryPositionsIfRequired(array($product->getId()), $categoryIds);
+        } catch (\Exception $e) { }
     }
+
 }

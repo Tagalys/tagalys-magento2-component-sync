@@ -127,7 +127,8 @@
             return timer !== false;
         };
     }
-    function isTagalysEnabled(tgls_jq){
+
+    function isTagalysEnabled(tgls_jq) {
         // if(tgls_jq('#enable_listingpages').val() != '1') return false;
         return true;
     }
@@ -138,7 +139,7 @@
         require([
             "jquery"
         ], function(tgls_jq) {
-            if(isTagalysEnabled(tgls_jq)){
+            if (isTagalysEnabled(tgls_jq)) {
                 tagalysStatusUpdateInterval = new tagalysInterval(tagalysGetAndUpdateSyncStatus, 5000);
                 tagalysManualSyncIndicatorInterval = new tagalysInterval(tagalysUpdateManualSyncIndicator, 2000);
                 // monitoring
@@ -214,7 +215,7 @@
 
     function tagalysUpdateSyncButtonLabel() {
         var toggleButton = document.getElementById('tagalys-toggle-manual-sync');
-        if(!toggleButton){
+        if (!toggleButton) {
             return;
         }
         if (tagalysSyncing) {
@@ -395,7 +396,7 @@
                     for (i = 0, j = data.selected.length; i < j; i++) {
                         r.push(data.instance.get_node(data.selected[i]).original.id);
                     }
-                   
+
                 }
             }).jstree({
                 'plugins': ["checkbox", "search"],
@@ -442,16 +443,22 @@
             updateStoreCategoriesVisibility();
         });
         tgls_jq('#understand_and_agree').keyup(function() {
+            updateFromIAgree()
+        }).bind('paste', function() {
+            updateFromIAgree()
+        });
+
+        checkTagalysEnabled(false);
+        onRenderingModeChange(false);
+
+        function updateFromIAgree() {
             if (storesVisibilityTimer) {
                 clearTimeout(storesVisibilityTimer);
             }
             storesVisibilityTimer = setTimeout(function() {
                 updateStoreCategoriesVisibility();
             }, 250);
-        });
-
-        checkTagalysEnabled(false);
-        onRenderingModeChange(false);
+        }
 
         function checkTagalysEnabled(resetIAgree) {
             if (typeof(resetIAgree) == 'undefined') {
@@ -496,7 +503,7 @@
 
         function updateStoreCategoriesVisibility() {
             var agreeValue = tgls_jq('#understand_and_agree').val();
-            if(agreeValue) {
+            if (agreeValue) {
                 agreeValue = agreeValue.trim();
             }
             if (agreeValue == 'I agree') {

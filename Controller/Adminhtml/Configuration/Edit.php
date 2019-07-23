@@ -31,7 +31,8 @@
         \Tagalys\Mpages\Helper\Mpages $tagalysMpages,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Catalog\Model\CategoryRepository $categoryRepository,
-        \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory
+        \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
+        \Magento\Indexer\Model\IndexerFactory $indexerFactory
     ) {
         parent::__construct($context);
         $this->resultPageFactory = $resultPageFactory;
@@ -45,6 +46,7 @@
         $this->storeManager = $storeManager;
         $this->categoryRepository = $categoryRepository;
         $this->tagalysCategoryFactory = $tagalysCategoryFactory;
+        $this->indexerFactory = $indexerFactory;
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
         $this->logger = new \Zend\Log\Logger();
         $this->logger->addWriter($writer);
@@ -155,9 +157,11 @@
                         foreach($params['stores_for_tagalys'] as $storeId) {
                             $originalStoreId = $this->storeManager->getStore()->getId();
                             $this->storeManager->setCurrentStore($storeId);
+                            $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
                             $this->tagalysApi->storeApiCall($storeId . '', '/v1/stores/update_platform_details', array(
                                 'platform_details' => array(
-                                    'platform_pages_rendering_method' => $params['category_pages_rendering_method']
+                                    'platform_pages_rendering_method' => $params['category_pages_rendering_method'],
+                                    'magento_category_products_indexer_mode' => ($categoryProductIndexer->isScheduled() ? 'update_by_schedule' : 'update_on_save')
                                 )
                             ));
                             if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {

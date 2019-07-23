@@ -19,6 +19,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Framework\Filesystem $filesystem,
         \Magento\Catalog\Api\CategoryRepositoryInterface $categoryRepository,
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
+        \Tagalys\Sync\Helper\Category $tagalysCategory,
         \Magento\Swatches\Helper\Data $swatchesHelper,
         \Magento\Swatches\Helper\Media $swatchesMediaHelper,
         \Magento\Catalog\Model\Product\Attribute\Repository $productAttributeRepository,
@@ -41,6 +42,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $this->filesystem = $filesystem;
         $this->categoryRepository = $categoryRepository;
         $this->tagalysConfiguration = $tagalysConfiguration;
+        $this->tagalysCategory = $tagalysCategory;
         $this->swatchesHelper = $swatchesHelper;
         $this->swatchesMediaHelper = $swatchesMediaHelper;
         $this->productAttributeRepository = $productAttributeRepository;
@@ -223,10 +225,18 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
     public function getProductCategories($product, $storeId) {
         $categoryIds =  $product->getCategoryIds();
         $activeCategoryPaths = array();
-        foreach ($categoryIds as $key => $value) {
-            $category = $this->categoryRepository->get($value, $this->storeManager->getStore()->getId());
+        foreach ($categoryIds as $key => $categoryId) {
+            $category = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
             if ($category->getIsActive()) {
-                $activeCategoryPaths[] = $category->getPath();
+                $path = $category->getPath();
+                $activeCategoryPaths[] = $path;
+                
+                // assign to parent categories
+                $relevantCategories = array_slice(explode('/', $path), 2); // ignore level 0 and 1
+                $idsToAssign = array_diff($relevantCategories, $categoryIds);
+                foreach ($idsToAssign as $key => $categoryId) {
+                    $this->tagalysCategory->assignProductToCategoryViaDb($categoryId, $product);
+                }
             }
         }
         $activeCategoriesTree = array();

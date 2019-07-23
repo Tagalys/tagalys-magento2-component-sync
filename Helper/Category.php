@@ -19,6 +19,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     \Magento\Framework\App\CacheInterface $cacheInterface,
     \Magento\Framework\Event\Manager $eventManager,
     \Magento\Framework\App\ProductMetadataInterface $productMetadataInterface,
+    \Magento\Indexer\Model\IndexerFactory $indexerFactory,
     \Magento\Framework\Math\Random $random
   ) {
     $this->tagalysConfiguration = $tagalysConfiguration;
@@ -37,6 +38,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     $this->cacheInterface = $cacheInterface;
     $this->eventManager = $eventManager;
     $this->productMetadataInterface = $productMetadataInterface;
+    $this->indexerFactory = $indexerFactory;
     
     $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_commands.log');
     $this->tagalysCommandsLogger = new \Zend\Log\Logger();
@@ -312,6 +314,15 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
               } else {
                 $this->_updatePositionsReverse($categoryId, $newPositions['positions']);
               }
+              
+              // clear magento cache
+              $category = $this->categoryFactory->create()->load($categoryId);
+              $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
+
+              // trigger event to allow clearing custom cache
+              $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => $categoryId));
+              $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
+              
               $categoryToSync->addData(array('positions_sync_required' => 0, 'positions_synced_at' => date("Y-m-d H:i:s")))->save();
             } else {
               // api call failed
@@ -328,16 +339,6 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
 
   public function _updatePositions($categoryId, $positions)
   {
-    $conn = $this->resourceConnection->getConnection();
-    $tableName = $this->resourceConnection->getTableName('catalog_category_product');
-    $beforeM225 = (version_compare($this->productMetadataInterface->getVersion(), '2.2.5') < 0);
-    if ($beforeM225) {
-      $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index');
-    }
-    $updateWithSql = false;
-    $skippedId = NULL;
-    $skippedPosition = NULL;
-
     if ($this->isProductPushDownAllowed($categoryId)) {
       $whereData = array(
         'category_id = ?' => (int)$categoryId,
@@ -346,26 +347,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       $updateData = array(
         'position' => (count($positions) + 1)
       );
-      $conn->update($tableName, $updateData, $whereData);
-      if ($beforeM225) {
-        $conn->update($indexTableName, $updateData, $whereData);
-      } else {
-        $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
-        foreach ($allStores as $store) {
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value']);
-          $conn->update($indexTableName, $updateData, $whereData);
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value'].'_replica');
-          $conn->update($indexTableName, $updateData, $whereData);
-        }
-      }
+      $this->runSqlForCategoryPositions($updateData, $whereData);
     }
 
     foreach ($positions as $productId => $productPosition) {
-      if (!$updateWithSql) {
-        $updateWithSql = true;
-        $skippedId = $productId;
-        $skippedPosition = $productPosition;
-      }
       $whereData = array(
         'category_id = ?' => (int)$categoryId,
         'product_id = ?' => (int)$productId
@@ -373,50 +358,13 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       $updateData = array(
         'position' => (int)$productPosition
       );
-      $conn->update($tableName, $updateData, $whereData);
-      if ($beforeM225) {
-        $conn->update($indexTableName, $updateData, $whereData);
-      } else {
-        $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
-        foreach ($allStores as $store) {
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value']);
-          $conn->update($indexTableName, $updateData, $whereData);
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value'].'_replica');
-          $conn->update($indexTableName, $updateData, $whereData);
-        }
-      }
-    }
-    $category = $this->categoryFactory->create()->load($categoryId);
-    $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
-
-    $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => $categoryId));
-    $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
-    /**
-     * API update for 1 product: To trigger magento to clear cache
-     * Should be done after SQL update(Just to be safe so that reindexing is triggered after all positions are updated)
-     */
-    try {
-      // $this->updateProductPositionWithApi($categoryId, $skippedId, $skippedPosition);
-    } catch (Exception $e) {
-      //TODO: Log error
-    } finally {
-      // $event_data_array = array('category_id' => (int)$categoryId);
-      // $varien_object = new Varien_Object($event_data_array);
-      // $objectManager->get('Magento\Framework\Event\Manager')->dispatchEvent('tagalys_category_positions_updated', array('varien_obj' => $varien_object));
+      $this->runSqlForCategoryPositions($updateData, $whereData);
     }
     return true;
   }
 
   public function _updatePositionsReverse($categoryId, $positions)
   {
-    $conn = $this->resourceConnection->getConnection();
-    $tableName = $this->resourceConnection->getTableName('catalog_category_product');
-    $totalPositions = count($positions);
-    $beforeM225 = (version_compare($this->productMetadataInterface->getVersion(), '2.2.5') < 0);
-    if ($beforeM225) {
-      $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index');
-    }
-
     if ($this->isProductPushDownAllowed($categoryId)) {
       $whereData = array(
         'category_id = ?' => (int)$categoryId,
@@ -425,21 +373,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       $updateData = array(
         'position' => 99
       );
-      $conn->update($tableName, $updateData, $whereData);
-
-      if ($beforeM225) {
-        $conn->update($indexTableName, $updateData, $whereData);
-      } else {
-        $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
-        foreach ($allStores as $store) {
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value']);
-          $conn->update($indexTableName, $updateData, $whereData);
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value'].'_replica');
-          $conn->update($indexTableName, $updateData, $whereData);
-        }
-      }
+      $this->runSqlForCategoryPositions($updateData, $whereData);
     }
 
+    $totalPositions = count($positions);
     foreach ($positions as $productId => $productPosition) {
       $whereData = array(
         'category_id = ?' => (int)$categoryId,
@@ -447,29 +384,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       );
       $updateData = array(
         'position' => 101 + $totalPositions - (int)$productPosition
-        // Padding
       );
-      $conn->update($tableName, $updateData, $whereData);
-      if ($beforeM225) {
-        $conn->update($indexTableName, $updateData, $whereData);
-      } else {
-        $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
-        foreach ($allStores as $store) {
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value']);
-          $conn->update($indexTableName, $updateData, $whereData);
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value'].'_replica');
-          $conn->update($indexTableName, $updateData, $whereData);
-        }
-      }
+      $this->runSqlForCategoryPositions($updateData, $whereData);
     }
-    $category = $this->categoryFactory->create()->load($categoryId);
-    $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
-
-    $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => $categoryId));
-    $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
-    // $event_data_array = array('category_id' => (int)$categoryId);
-    // $varien_object = new Varien_Object($event_data_array);
-    // $objectManager->get('Magento\Framework\Event\Manager')->dispatchEvent('tagalys_category_positions_updated', array('varien_obj' => $varien_object));
     return true;
   }
 
@@ -640,5 +557,65 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       } catch (Exception $e) {
           return false;
       }
+  }
+    public function updateProductCategoryPositionsIfRequired($productIds, $productCategories = null) {
+      $listingpagesEnabled = $this->tagalysConfiguration->getConfig('module:listingpages:enabled');
+      if($listingpagesEnabled == '1') {
+          $sortDirection = $this->tagalysConfiguration->getConfig('listing_pages:position_sort_direction');
+          if($sortDirection == 'asc'){
+              $tagalysCategories = $this->getTagalysCategories($productCategories);
+              if (count($tagalysCategories) > 0) {
+                $whereData = array(
+                    'category_id IN (?)' => $tagalysCategories,
+                    'product_id IN (?)' => $productIds,
+                    'position = ?' => 0
+                );
+                $updateData = array(
+                    'position' => 99999
+                );
+                $this->runSqlForCategoryPositions($updateData, $whereData);
+              }
+          }
+      }
+  }
+
+  public function runSqlForCategoryPositions($updateData, $whereData) {
+    $conn = $this->resourceConnection->getConnection();
+    $tableName = $this->resourceConnection->getTableName('catalog_category_product');
+    $conn->update($tableName, $updateData, $whereData);
+
+    $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
+    if ($categoryProductIndexer->isScheduled() === false) {
+      // update indexes now
+      $beforeM225 = (version_compare($this->productMetadataInterface->getVersion(), '2.2.5') < 0);
+      if ($beforeM225) {
+        $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index');
+        $conn->update($indexTableName, $updateData, $whereData);
+      } else {
+        $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
+        foreach ($allStores as $store) {
+          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value']);
+          $conn->update($indexTableName, $updateData, $whereData);
+          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value'].'_replica');
+          $conn->update($indexTableName, $updateData, $whereData);
+        }
+      }
+    }
+  }
+
+  public function getTagalysCategories($categoryIds = null) {
+    $conn = $this->resourceConnection->getConnection();
+    $tableName = $this->resourceConnection->getTableName('tagalys_category');
+    $select = $conn->select()->from($tableName)->where('marked_for_deletion = ? and status != "failed"', 0);
+    if($categoryIds!=null && is_array($categoryIds) && count($categoryIds) > 0 ){
+      $select->where('category_id IN (?)', $categoryIds);
+    }
+    $result = $conn->fetchAll($select);
+    $tagalysCategories = array();
+    foreach($result as $row){
+        $tagalysCategories[] = $row['category_id'];
+    }
+    $tagalysCategories = array_unique($tagalysCategories);
+    return $tagalysCategories;
   }
 }

@@ -43,8 +43,6 @@ class PostAction implements \Magento\Framework\Event\ObserverInterface
                     $this->tagalysSync->triggerFeedForStore($storeId);
                 }
             }
-        } catch (\Exception $e) {
-            
-        }
+        } catch (\Exception $e) { }
     }
 }

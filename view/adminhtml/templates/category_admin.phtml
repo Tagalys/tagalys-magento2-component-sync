@@ -1,0 +1,45 @@
+<?php
+    try {
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        $tagalysCategoryhelper = $objectManager->get('Tagalys\Sync\Helper\Category');
+        $tagalysCategories = json_encode($tagalysCategoryhelper->getTagalysCategories());
+        echo "<script>var tagalysCategories = $tagalysCategories</script>";
+    } catch(Exception $e) {
+
+    }
+?>
+<script>
+    require(
+        [
+            'jquery',
+            'mage/translate',
+        ],
+        function($) {
+            $(function() {
+                try {
+                    var tagalysNoticeInterval = null;
+                    var urlComponents = window.location.href.split('/');
+                    if (urlComponents[urlComponents.length - 1] == "") {
+                        urlComponents.pop();
+                    }
+                    var currentCategory = urlComponents[urlComponents.length - 1];
+                    tagalysCategories.forEach(function(category) {
+                        if (category == currentCategory) {
+                            tagalysNoticeInterval = setInterval(function() {
+                                if ($('#catalog_category_products').length > 0) {
+                                    var $tagalysDiv = $('<div>').css('background', '#1c6dad').css('padding', '10px').css('margin-bottom', '10px').css('color', 'white');
+                                    $tagalysDiv.append($('<h2>').css('margin-bottom', '5px').html('Product positions in this category are controlled by Tagalys').css('color', 'white'));
+                                    $tagalysDiv.append($('<p>').css('margin-bottom', '0').html('Visit <a target="__blank" style="color:white;text-decoration:underline;" href="https://next.tagalys.com">next.tagalys.com</a> to merchandise & change product positions'));
+                                    $tagalysDiv.insertBefore('#catalog_category_products');
+                                    clearInterval(tagalysNoticeInterval);
+                                }
+                            }, 1000);
+                        }
+                    });
+                } catch (err) {
+
+                }
+            });
+        }
+    );
+</script>
