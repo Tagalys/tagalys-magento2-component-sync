@@ -3,7 +3,7 @@ namespace Tagalys\Sync\Helper;
 
 class Category extends \Magento\Framework\App\Helper\AbstractHelper
 {
-
+  private $updatedCategories = array();
   public function __construct(
     \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
     \Tagalys\Sync\Helper\Api $tagalysApi,
@@ -45,6 +45,13 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     $this->tagalysCommandsLogger->addWriter($writer);
   }
 
+  public function truncate() {
+      $tagalysCategoryFactory = $this->tagalysCategoryFactory->create();
+      $connection = $tagalysCategoryFactory->getResource()->getConnection();
+      $tableName = $tagalysCategoryFactory->getResource()->getMainTable();
+      $connection->truncateTable($tableName);
+  }
+
   public function createOrUpdateWithData($storeId, $categoryId, $createData, $updateData)
   {
     $firstItem = $this->tagalysCategoryFactory->create()->getCollection()
@@ -79,8 +86,6 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
 
   public function isMultiStoreWarningRequired()
   {
-    $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => 24));
-    $this->eventManager->dispatch( 'tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
     $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
     $showMultiStoreConfig = false;
     $checkAllCategories = false;
@@ -228,21 +233,32 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
   public function markPositionsSyncRequiredForCategories($storeId, $categoryIds) {
       $conn = $this->resourceConnection->getConnection();
       $tableName = $this->resourceConnection->getTableName('tagalys_category');
-      if ($categoryIds == 'all') {
-          $whereData = array(
-              'category_id > ?' => 1,
-              'store_id = ?' => $storeId
-          );
-      } else {
-          $whereData = array(
-              'category_id IN (?)' => $categoryIds
-          );
+      $whereData = array(
+          'status = ?' => 'powered_by_tagalys'
+      );
+      if ($storeId !== 'all') {
+          $whereData['store_id = ?'] = $storeId;
+      }
+      if ($categoryIds !== 'all') {
+          $whereData['category_id IN (?)'] = $categoryIds;
       }
       $updateData = array(
           'positions_sync_required' => 1
       );
       $conn->update($tableName, $updateData, $whereData);
       return true;
+  }
+  public function markFailedCategoriesForRetrying() {
+    $conn = $this->resourceConnection->getConnection();
+    $tableName = $this->resourceConnection->getTableName('tagalys_category');
+    $whereData = array(
+      'status = ?' => 'failed'
+    );
+    $updateData = array(
+      'status' => 'pending_sync'
+    );
+    $conn->update($tableName, $updateData, $whereData);
+    return true;
   }
   public function getEnabledCount($storeId)
   {
@@ -271,6 +287,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
   public function getRequiresPositionsSyncCollection()
   {
     $categoriesToSync = $this->tagalysCategoryFactory->create()->getCollection()
+      ->addFieldToFilter('status', 'powered_by_tagalys')
       ->addFieldToFilter('positions_sync_required', 1)
       ->addFieldToFilter('marked_for_deletion', 0);
     return $categoriesToSync;
@@ -314,15 +331,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
               } else {
                 $this->_updatePositionsReverse($categoryId, $newPositions['positions']);
               }
-              
-              // clear magento cache
-              $category = $this->categoryFactory->create()->load($categoryId);
-              $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
-
-              // trigger event to allow clearing custom cache
-              $categoryIdObj = new \Magento\Framework\DataObject(array('category_id' => $categoryId));
-              $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdObj]);
-              
+              array_push($this->updatedCategories, $categoryId);
               $categoryToSync->addData(array('positions_sync_required' => 0, 'positions_synced_at' => date("Y-m-d H:i:s")))->save();
             } else {
               // api call failed
@@ -333,6 +342,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         }
         $syncStatus['locked_by'] = null;
         $this->tagalysConfiguration->setConfig('categories_sync_status', $syncStatus, true);
+
+        $this->processUpdatedCategories();
       }
     }
   }
@@ -537,7 +548,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       $this->tagalysCommandsLogger->info("assignProductToCategoryViaDb: {$categoryId}");
       $conn = $this->resourceConnection->getConnection();
       $table = $this->resourceConnection->getTableName('catalog_category_product');
-      $assignData = array('category_id'=>(int)$categoryId, 'product_id'=>(int)($product->getId()), 'position'=>9999);
+      
+      $sortDirection = $this->tagalysConfiguration->getConfig('listing_pages:position_sort_direction');
+      $positionToAssign = ($sortDirection == 'desc' ? 1 : 9999);
+      $assignData = array('category_id'=>(int)$categoryId, 'product_id'=>(int)($product->getId()), 'position' => $positionToAssign);
       $conn->insert($table, $assignData);
   }
 
@@ -558,7 +572,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
           return false;
       }
   }
-    public function updateProductCategoryPositionsIfRequired($productIds, $productCategories = null) {
+    public function updateProductCategoryPositionsIfRequired($productIds, $productCategories = null, $indexerToRun = 'product') {
+      // called from observers when new products are added to categories - in position ascending order, they should be positioned at the bottom of the page.
       $listingpagesEnabled = $this->tagalysConfiguration->getConfig('module:listingpages:enabled');
       if($listingpagesEnabled == '1') {
           $sortDirection = $this->tagalysConfiguration->getConfig('listing_pages:position_sort_direction');
@@ -571,11 +586,70 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                     'position = ?' => 0
                 );
                 $updateData = array(
-                    'position' => 99999
+                    'position' => 9999
                 );
                 $this->runSqlForCategoryPositions($updateData, $whereData);
+                $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
+                if ($categoryProductIndexer->isScheduled() === false) {
+                  // reindex if index mode is update on save. not required for schedule because we don't want these showing up so it has the same effect. when tagalys syncs and updates positions, reindex will be triggered.
+                  switch($indexerToRun) {
+                    case 'product':
+                      $reindexAndClearCacheImmediately = $this->tagalysConfiguration->getConfig('listing_pages:reindex_and_clear_cache_immediately');
+                      if ($reindexAndClearCacheImmediately == '1') {
+                        $indexer = $this->indexerFactory->create()->load('catalog_product_category');
+                        $indexer->reindexList($productIds);
+                      }
+                      // cache may already be getting updated. even otherwise, we don't need to update here as we don't want products to show up anyway. caches are cleared when positions are updated via Tagalys.
+                      break;
+                    case 'category':
+                      array_push($this->updatedCategories, $tagalysCategories);
+                      $this->processUpdatedCategories();
+                      break;
+                  }
+                }
               }
           }
+      }
+  }
+
+  public function processUpdatedCategories() {
+    $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_commands.log');
+    $this->tagalysCommandsLogger = new \Zend\Log\Logger();
+    $this->tagalysCommandsLogger->addWriter($writer);
+      if (count($this->updatedCategories) > 0) {
+
+          // set sort order to position
+          foreach ($this->updatedCategories as $categoryId) {
+            // don't set default store order because that could change all store's sort orders
+              // $category = $this->categoryFactory->create()->setStoreId('0')->load($categoryId);
+              // $category->setDefaultSortBy('position')->save();
+
+            // set position sort order for all tagalys stores for all categories. assumption: if a category is assigned to tagalys in one store, it has to be assigned to tagalys in other stores that are powered by tagalys.
+            $storesForTagalys = $this->tagalysConfiguration->getStoresForTagalys();
+            foreach ($storesForTagalys as $storeId) {
+              $category = $this->categoryFactory->create()->setStoreId($storeId)->load($categoryId);
+              $category->setDefaultSortBy('position')->save();
+            }
+          }
+
+          $reindexAndClearCacheImmediately = $this->tagalysConfiguration->getConfig('listing_pages:reindex_and_clear_cache_immediately');
+          if ($reindexAndClearCacheImmediately == '1') {
+            // reindex
+            $indexer = $this->indexerFactory->create()->load('catalog_category_product');
+            $indexer->reindexList($this->updatedCategories);
+
+            foreach($this->updatedCategories as $categoryId) {
+              // clear magento cache
+              $category = $this->categoryFactory->create()->load($categoryId);
+              $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
+            }
+          }
+
+          // trigger event to allow clearing custom cache
+          $categoryIdsObj = new \Magento\Framework\DataObject(array('category_ids' => $this->updatedCategories));
+          $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdsObj]);
+
+          $this->updatedCategories = array();
       }
   }
 
@@ -583,24 +657,6 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     $conn = $this->resourceConnection->getConnection();
     $tableName = $this->resourceConnection->getTableName('catalog_category_product');
     $conn->update($tableName, $updateData, $whereData);
-
-    $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
-    if ($categoryProductIndexer->isScheduled() === false) {
-      // update indexes now
-      $beforeM225 = (version_compare($this->productMetadataInterface->getVersion(), '2.2.5') < 0);
-      if ($beforeM225) {
-        $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index');
-        $conn->update($indexTableName, $updateData, $whereData);
-      } else {
-        $allStores = $this->tagalysConfiguration->getAllWebsiteStores();
-        foreach ($allStores as $store) {
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value']);
-          $conn->update($indexTableName, $updateData, $whereData);
-          $indexTableName = $this->resourceConnection->getTableName('catalog_category_product_index_store'.$store['value'].'_replica');
-          $conn->update($indexTableName, $updateData, $whereData);
-        }
-      }
-    }
   }
 
   public function getTagalysCategories($categoryIds = null) {

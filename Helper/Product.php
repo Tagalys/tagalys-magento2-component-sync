@@ -3,6 +3,7 @@ namespace Tagalys\Sync\Helper;
 
 class Product extends \Magento\Framework\App\Helper\AbstractHelper
 {
+    private $productsToReindex = array();
     public function __construct(
         \Magento\Catalog\Model\ProductFactory $productFactory,
         \Magento\ConfigurableProduct\Api\LinkManagementInterface $linkManagement,
@@ -24,6 +25,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Swatches\Helper\Media $swatchesMediaHelper,
         \Magento\Catalog\Model\Product\Attribute\Repository $productAttributeRepository,
         \Magento\Framework\Event\Manager $eventManager,
+        \Magento\Framework\Indexer\IndexerRegistry $indexerRegistry,
         \Magento\CatalogInventory\Api\StockRegistryInterface $stockRegistry
     )
     {
@@ -47,6 +49,7 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $this->swatchesMediaHelper = $swatchesMediaHelper;
         $this->productAttributeRepository = $productAttributeRepository;
         $this->eventManager = $eventManager;
+        $this->indexerRegistry = $indexerRegistry;
         $this->stockRegistry = $stockRegistry;
     }
 
@@ -210,21 +213,34 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
         $detailsTree = array();
         foreach($categoriesTree as $categoryId => $subCategoriesTree) {
             $category = $this->categoryRepository->get($categoryId, $storeId);
-            if ($category->getIsActive()) {
-                $thisCategoryDetails = array("id" => $category->getId() , "label" => $category->getName());
-                $subCategoriesCount = count($subCategoriesTree);
-                if ($subCategoriesCount > 0) {
-                    $thisCategoryDetails['items'] = $this->detailsFromCategoryTree($subCategoriesTree, $storeId);
-                }
-                array_push($detailsTree, $thisCategoryDetails);
+            $categoryEnabled = (($category->getIsActive() === true || $category->getIsActive() === '1') ? true : false);
+            $categoryIncludedInMenu = (($category->getIncludeInMenu() === true || $category->getIncludeInMenu() === '1') ? true : false);
+            $thisCategoryDetails = array("id" => $category->getId() , "label" => $category->getName(), "is_active" => $categoryEnabled, "include_in_menu" => $categoryIncludedInMenu);
+            $subCategoriesCount = count($subCategoriesTree);
+            if ($subCategoriesCount > 0) {
+                $thisCategoryDetails['items'] = $this->detailsFromCategoryTree($subCategoriesTree, $storeId);
             }
+            array_push($detailsTree, $thisCategoryDetails);
         }
         return $detailsTree;
+    }
+
+    public function getProductsToReindex() {
+        return $this->productsToReindex;
+    }
+
+    public function reindexRequiredProducts() {
+        if (count($this->productsToReindex) > 0) {
+            $indexer = $this->indexerRegistry->get('catalog_product_category');
+            $indexer->reindexList($this->productsToReindex);
+            $this->productsToReindex = array();
+        }
     }
 
     public function getProductCategories($product, $storeId) {
         $categoryIds =  $product->getCategoryIds();
         $activeCategoryPaths = array();
+        $categoriesAssigned = array();
         foreach ($categoryIds as $key => $categoryId) {
             $category = $this->categoryRepository->get($categoryId, $this->storeManager->getStore()->getId());
             if ($category->getIsActive()) {
@@ -235,9 +251,15 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                 $relevantCategories = array_slice(explode('/', $path), 2); // ignore level 0 and 1
                 $idsToAssign = array_diff($relevantCategories, $categoryIds);
                 foreach ($idsToAssign as $key => $categoryId) {
-                    $this->tagalysCategory->assignProductToCategoryViaDb($categoryId, $product);
+                    if (!in_array($categoryId, $categoriesAssigned)) {
+                        $this->tagalysCategory->assignProductToCategoryViaDb($categoryId, $product);
+                        array_push($categoriesAssigned, $categoryId);
+                    }
                 }
             }
+        }
+        if (count($categoriesAssigned) > 0) {
+            array_push($this->productsToReindex, $product->getId());
         }
         $activeCategoriesTree = array();
         foreach($activeCategoryPaths as $activeCategoryPath) {

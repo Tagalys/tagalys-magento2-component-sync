@@ -40,7 +40,7 @@ class PostAction implements \Magento\Framework\Event\ObserverInterface
             if (in_array($controllerActionName, array("category_save", "category_delete"))) {
                 $stores = $this->tagalysConfiguration->getStoresForTagalys();
                 foreach($stores as $i => $storeId) {
-                    $this->tagalysSync->triggerFeedForStore($storeId);
+                    $this->tagalysConfiguration->setConfig("store:{$storeId}:resync_required", 1);
                 }
             }
         } catch (\Exception $e) { }

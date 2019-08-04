@@ -24,7 +24,7 @@ class UpdateCategory implements \Magento\Framework\Event\ObserverInterface
             foreach($insert as $productId => $pos) {
                 array_push($productIds, $productId);
             }
-            $this->tagalysCategory->updateProductCategoryPositionsIfRequired($productIds, array($category->getId()));
+            $this->tagalysCategory->updateProductCategoryPositionsIfRequired($productIds, array($category->getId()), 'category');
             foreach($delete as $productId => $pos) {
                 array_push($productIds, $productId);
             }

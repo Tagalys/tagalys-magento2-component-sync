@@ -1,12 +1,10 @@
 <?php
-    try {
-        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
-        $tagalysCategoryhelper = $objectManager->get('Tagalys\Sync\Helper\Category');
-        $tagalysCategories = json_encode($tagalysCategoryhelper->getTagalysCategories());
-        echo "<script>var tagalysCategories = $tagalysCategories</script>";
-    } catch(Exception $e) {
-
-    }
+try {
+    $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+    $tagalysCategoryhelper = $objectManager->get('Tagalys\Sync\Helper\Category');
+    $tagalysCategories = json_encode($tagalysCategoryhelper->getTagalysCategories());
+    echo "<script>var tagalysCategories = $tagalysCategories</script>";
+} catch (Exception $e) { }
 ?>
 <script>
     require(
@@ -19,12 +17,10 @@
                 try {
                     var tagalysNoticeInterval = null;
                     var urlComponents = window.location.href.split('/');
-                    if (urlComponents[urlComponents.length - 1] == "") {
-                        urlComponents.pop();
-                    }
-                    var currentCategory = urlComponents[urlComponents.length - 1];
-                    tagalysCategories.forEach(function(category) {
-                        if (category == currentCategory) {
+                    var id_index = urlComponents.indexOf('id');
+                    if (id_index != -1) {
+                        var currentCategory = urlComponents[id_index + 1];
+                        if ($.inArray(currentCategory, tagalysCategories) !== -1) {
                             tagalysNoticeInterval = setInterval(function() {
                                 if ($('#catalog_category_products').length > 0) {
                                     var $tagalysDiv = $('<div>').css('background', '#1c6dad').css('padding', '10px').css('margin-bottom', '10px').css('color', 'white');
@@ -35,11 +31,10 @@
                                 }
                             }, 1000);
                         }
-                    });
+                    }
                 } catch (err) {
 
                 }
             });
-        }
-    );
+        });
 </script>

@@ -27,7 +27,7 @@ class ImportSave implements \Magento\Framework\Event\ObserverInterface
 
             $this->queueHelper->insertUnique($productIds);
 
-            $this->tagalysCategory->updateProductCategoryPositionsIfRequired($productIds);
+            $this->tagalysCategory->updateProductCategoryPositionsIfRequired($productIds, null, 'product');
         } catch (\Exception $e) { }
     }
 }

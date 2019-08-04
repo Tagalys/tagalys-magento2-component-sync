@@ -16,8 +16,6 @@ class UpdateAttributes implements \Magento\Framework\Event\ObserverInterface
         try {
             $updatedProductIds = $observer->getEvent()->getProductIds();
             $this->queueHelper->insertUnique($updatedProductIds);
-
-            $this->tagalysCategory->updateProductCategoryPositionsIfRequired($updatedProductIds);
         } catch (\Exception $e) { }
     }
 }

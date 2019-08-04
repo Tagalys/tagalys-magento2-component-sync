@@ -125,13 +125,49 @@ class Support extends Generic
 
         $setupStatus = $this->tagalysConfiguration->getConfig('setup_status');
         if (in_array($setupStatus, array('sync', 'completed'))) {
-            $tagalysFullResyncFieldset = $form->addFieldset('tagalys_full_resync_fieldset', array('legend' => __('Full Products Resync')));
+            $tagalysCategoriesFieldset = $form->addFieldset('tagalys_categories_fieldset', array('legend' => __('Tagalys Categories')));
 
-            $tagalysFullResyncFieldset->addField('note_resync', 'note', array(
+            $tagalysCategoriesFieldset->addField('update_positions_for_all_categories', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => 'Update positions for all categories',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
+            ));
+
+            $tagalysCategoriesFieldset->addField('retry_syncing_failed_categories', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => 'Retry syncing failed categories',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
+            ));
+
+            $tagalysSyncConfigFieldset = $form->addFieldset('tagalys_sync_config_fieldset', array('legend' => __('Configuration Sync')));
+
+            $tagalysSyncConfigFieldset->addField('note_resync_config', 'note', array(
+                'text' => __('This will trigger a resync of your configuration to Tagalys. Do this only with direction from Tagalys Support.')
+            ));
+
+            $tagalysSyncConfigFieldset->addField('submit_resync_config', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => 'Trigger configuration resync now',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
+            ));
+
+            $tagalysProductsSyncFieldset = $form->addFieldset('tagalys_full_resync_fieldset', array('legend' => __('Products Sync')));
+
+            $tagalysProductsSyncFieldset->addField('note_resync', 'note', array(
+                'label' => 'Full Sync',
                 'text' => __('This will trigger a full resync of your products to Tagalys. Do this only with direction from Tagalys Support. Please note that this will cause high CPU usage on your server. We recommend that you do this at low traffic hours.')
             ));
 
-            $tagalysFullResyncFieldset->addField('submit_resync', 'submit', array(
+            $tagalysProductsSyncFieldset->addField('submit_resync', 'submit', array(
                 'label' => '',
                 'name' => 'tagalys_submit_action',
                 'value' => 'Trigger full products resync now',
@@ -140,8 +176,22 @@ class Support extends Generic
                 'tabindex' => 1
             ));
 
-            $tagalysFullResyncFieldset->addField('note_cron', 'note', array(
+            $tagalysProductsSyncFieldset->addField('note_cron', 'note', array(
                 'text' => __('<small><b>NOTE: Please make sure Cron is setup and running. <a target=_blank href="http://devdocs.magento.com/guides/v2.2/config-guide/cli/config-cli-subcommands-cron.html">Cron Documentation</a></b></small>'),
+            ));
+
+            $tagalysProductsSyncFieldset->addField('note_clear_sync_updates', 'note', array(
+                'label' => __('Updates'),
+                'text' => __('This will clear all product ids in Tagalys\' sync queue.')
+            ));
+
+            $tagalysProductsSyncFieldset->addField('submit_clear_sync_updates_queue', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => 'Clear Tagalys sync queue',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
             ));
 
             $tagalysUpdateCachesFieldset = $form->addFieldset('tagalys_update_caches_fieldset', array('legend' => __('Update Caches')));
@@ -158,36 +208,6 @@ class Support extends Generic
                 'label' => '',
                 'name' => 'tagalys_submit_action',
                 'value' => 'Update Merchandised Pages cache now',
-                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
-                'class'=> "tagalys-button-submit",
-                'tabindex' => 1
-            ));
-
-            $tagalysSyncConfigFieldset = $form->addFieldset('tagalys_sync_config_fieldset', array('legend' => __('Configuration Resync')));
-
-            $tagalysSyncConfigFieldset->addField('note_resync_config', 'note', array(
-                'text' => __('This will trigger a resync of your configuration to Tagalys. Do this only with direction from Tagalys Support.')
-            ));
-
-            $tagalysSyncConfigFieldset->addField('submit_resync_config', 'submit', array(
-                'label' => '',
-                'name' => 'tagalys_submit_action',
-                'value' => 'Trigger configuration resync now',
-                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
-                'class'=> "tagalys-button-submit",
-                'tabindex' => 1
-            ));
-
-            $tagalysClearSyncUpdatesQueueFieldset = $form->addFieldset('tagalys_clear_sync_updates_queue_fieldset', array('legend' => __('Clear Tagalys sync queue')));
-
-            $tagalysClearSyncUpdatesQueueFieldset->addField('note_clear_sync_updates', 'note', array(
-                'text' => __('This will clear all product ids in Tagalys\' sync queue.')
-            ));
-
-            $tagalysClearSyncUpdatesQueueFieldset->addField('submit_clear_sync_updates_queue', 'submit', array(
-                'label' => '',
-                'name' => 'tagalys_submit_action',
-                'value' => 'Clear Tagalys sync queue',
                 'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
                 'class'=> "tagalys-button-submit",
                 'tabindex' => 1

@@ -151,6 +151,7 @@
                         $this->tagalysConfiguration->setConfig('module:listingpages:enabled', $params['enable_listingpages']);
                         $this->messageManager->addNoticeMessage("Settings have been saved. Selected categories will be visible in your Tagalys Dashboard within 10 minutes and product positions on these categories will be updated within 15 minutes unless specificed below.");
                         $this->tagalysConfiguration->setConfig('listing_pages:rendering_method', $params['category_pages_rendering_method']);
+                        $this->tagalysConfiguration->setConfig('listing_pages:reindex_and_clear_cache_immediately', $params['reindex_and_clear_cache_immediately']);
                         $this->tagalysConfiguration->setConfig('listing_pages:position_sort_direction', $params['position_sort_direction']);
                         $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);
                         
@@ -235,6 +236,16 @@
                     $this->tagalysApi->log('warn', 'search:enabled:'.$params['enable_mystore']);
                     $redirectToTab = 'mystore';
                     break;
+                case 'Update positions for all categories':
+                    $this->tagalysApi->log('warn', 'Updating positions for all categories');
+                    $this->tagalysCategoryHelper->markPositionsSyncRequiredForCategories('all', 'all');
+                    $redirectToTab = 'support';
+                    break;
+                case 'Retry syncing failed categories':
+                    $this->tagalysApi->log('warn', 'Retrying failed categories sync');
+                    $this->tagalysCategoryHelper->markFailedCategoriesForRetrying();
+                    $redirectToTab = 'support';
+                    break;
                 case 'Update Popular Searches now':
                     $this->tagalysApi->log('warn', 'Triggering update popular searches');
                     $this->tagalysSync->cachePopularSearches();
@@ -274,6 +285,7 @@
                     $this->tagalysApi->log('warn', 'Restarting Tagalys Setup');
                     $this->queueHelper->truncate();
                     $this->tagalysConfiguration->truncate();
+                    $this->tagalysCategoryHelper->truncate();
                     $redirectToTab = 'api_credentials';
                     break;
             }

@@ -110,6 +110,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
             }
         }
+        $this->tagalysCategory->maintenanceSync();
     }
 
     public function sync($maxProducts = 500, $max_categories = 50) {
@@ -450,8 +451,14 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                                 break;
                             }
                         }
+                        $this->tagalysProduct->reindexRequiredProducts();
                     } catch (\Exception $e) {
                         $this->tagalysApi->log('error', 'Exception in generateFilePart', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus, 'message' => $e->getMessage()));
+                        try {
+                            $this->tagalysProduct->reindexRequiredProducts();
+                        } catch (\Exception $e) {
+                            $this->tagalysApi->log('error', 'Exception in generateFilePart reindexRequiredProducts', array('storeId' => $storeId, 'syncFileStatus' => $syncFileStatus, 'message' => $e->getMessage()));
+                        }
                     }
                 }
                 $updatesPerformed = true;
@@ -611,7 +618,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 if ($storeResyncRequired == '1') {
                     $resyncScheduled = true;
                     if ($statusForClient == 'Finished') {
-                        $statusForClient = 'Scheduled at 1 AM';
+                        $statusForClient = 'Scheduled as per Cron settings';
                     }
                 }
                 if ($statusForClient == 'Writing to file' || $statusForClient == 'Waiting to write to file') {
@@ -667,14 +674,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                     array_push($listingPagesStatusMessages, 'Pending sync to Tagalys: '.$pendingSync);
                 }
                 if ($requiringPositionsSync > 0) {
-                    // $indexerProcess = Mage::getSingleton('index/indexer')->getProcessByCode('catalog_category_product');
-                    // $indexerDone = ($indexerProcess->getStatus() == Mage_Index_Model_Process::STATUS_PENDING);
-                    $indexerDone = true;
-                    if ($indexerDone) {
-                        array_push($listingPagesStatusMessages, 'Positions update required: ' . $requiringPositionsSync);
-                    } else {
-                        array_push($listingPagesStatusMessages, 'Positions update required: ' . $requiringPositionsSync . '. Waiting for Category Products Index.');
-                    }
+                    array_push($listingPagesStatusMessages, 'Positions update required: ' . $requiringPositionsSync);
                 }
                 if (empty($listingPagesStatusMessages)) {
                     array_push($listingPagesStatusMessages, 'Finished');
@@ -710,7 +710,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         }
 
         if ($resyncScheduled) {
-            $syncStatus['status'] = $syncStatus['status'] . '. Resync scheduled at 1 AM. You can resync manually by using the <strong>Trigger full products resync now</strong> option in the <strong>Support & Troubleshooting</strong> tab and then clicking on the <strong>Sync Manually</strong> button that will show below.';
+            $syncStatus['status'] = $syncStatus['status'] . '. Resync scheduled as per Cron settings. You can resync manually by using the <strong>Trigger full products resync now</strong> option in the <strong>Support & Troubleshooting</strong> tab and then clicking on the <strong>Sync Manually</strong> button that will show below.';
         }
 
         return $syncStatus;
