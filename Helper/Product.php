@@ -177,15 +177,17 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                         $label = $productAttribute->setStoreId($storeId)->getFrontend()->getOption($value);
                         if ($value != null && $label != false) {
                             $thisItem = array('id' => $value, 'label' => $label);
-                            if ($this->swatchesHelper->isVisualSwatch($productAttribute)) {
-                                $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$value]);
-                                if (count($swatchConfig) > 0) {
-                                    $thisItem['swatch'] = $swatchConfig[$value]['value'];
-                                    if (strpos($thisItem['swatch'], '#') === false) {
-                                        $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                            try {
+                                if ($this->swatchesHelper->isVisualSwatch($productAttribute)) {
+                                    $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$value]);
+                                    if (count($swatchConfig) > 0) {
+                                        $thisItem['swatch'] = $swatchConfig[$value]['value'];
+                                        if (strpos($thisItem['swatch'], '#') === false) {
+                                            $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                                        }
                                     }
                                 }
-                            }
+                            } catch (\Exception $e) { }
                             $items[] = $thisItem;
                         }
                     }
@@ -373,15 +375,17 @@ class Product extends \Magento\Framework\App\Helper\AbstractHelper
                         $hash[$id] = true;
                         $thisItem = array('id' => $id, 'label' => $associatedProduct->setStoreId($storeId)->getAttributeText($configurableAttribute));
                         $attr = $this->productAttributeRepository->get($configurableAttribute);
-                        if ($this->swatchesHelper->isVisualSwatch($attr)) {
-                            $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$id]);
-                            if (count($swatchConfig) > 0) {
-                                $thisItem['swatch'] = $swatchConfig[$id]['value'];
-                                if (strpos($thisItem['swatch'], '#') === false) {
-                                    $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                        try {
+                            if ($this->swatchesHelper->isVisualSwatch($attr)) {
+                                $swatchConfig = $this->swatchesHelper->getSwatchesByOptionsId([$id]);
+                                if (count($swatchConfig) > 0) {
+                                    $thisItem['swatch'] = $swatchConfig[$id]['value'];
+                                    if (strpos($thisItem['swatch'], '#') === false) {
+                                        $thisItem['swatch'] = $this->swatchesMediaHelper->getSwatchAttributeImage('swatch_image', $thisItem['swatch']);
+                                    }
                                 }
                             }
-                        }
+                        } catch (\Exception $e) { }
                         $tagItems[$configurableAttribute][] = $thisItem;
                     }
                 }

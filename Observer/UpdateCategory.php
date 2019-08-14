@@ -16,20 +16,26 @@ class UpdateCategory implements \Magento\Framework\Event\ObserverInterface
         try {
             $category = $observer->getEvent()->getCategory();
             $products = $category->getPostedProducts();
+            if (!is_array($products)) {
+                $products = array($products);
+            }
             $oldProducts = $category->getProductsPosition();
             $insert = array_diff_key($products, $oldProducts);
             $delete = array_diff_key($oldProducts, $products);
 
-            $productIds = array();
+            $insertedProductIds = array();
+            $modifiedProductIds = array();
             foreach($insert as $productId => $pos) {
-                array_push($productIds, $productId);
+                array_push($insertedProductIds, $productId);
+                array_push($modifiedProductIds, $productId);
             }
-            $this->tagalysCategory->updateProductCategoryPositionsIfRequired($productIds, array($category->getId()), 'category');
             foreach($delete as $productId => $pos) {
-                array_push($productIds, $productId);
+                array_push($modifiedProductIds, $productId);
             }
-            
-            $this->queueHelper->insertUnique($productIds);
+            $this->queueHelper->insertUnique($modifiedProductIds);
+            if (count($insertedProductIds) > 0) {
+                $this->tagalysCategory->updateProductCategoryPositionsIfRequired($insertedProductIds, array($category->getId()), 'category');
+            }
         } catch (\Exception $e) { }
     }
 }

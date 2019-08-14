@@ -343,7 +343,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $syncStatus['locked_by'] = null;
         $this->tagalysConfiguration->setConfig('categories_sync_status', $syncStatus, true);
 
-        $this->processUpdatedCategories();
+        $this->processUpdatedCategories(true);
       }
     }
   }
@@ -612,23 +612,27 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
       }
   }
 
-  public function processUpdatedCategories() {
+  public function processUpdatedCategories($updateSortOrder = false) {
     $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_commands.log');
     $this->tagalysCommandsLogger = new \Zend\Log\Logger();
     $this->tagalysCommandsLogger->addWriter($writer);
       if (count($this->updatedCategories) > 0) {
 
-          // set sort order to position
-          foreach ($this->updatedCategories as $categoryId) {
-            // don't set default store order because that could change all store's sort orders
-              // $category = $this->categoryFactory->create()->setStoreId('0')->load($categoryId);
-              // $category->setDefaultSortBy('position')->save();
+          if ($updateSortOrder) {
+            // set sort order to position
+            foreach ($this->updatedCategories as $categoryId) {
+              // don't set default store order because that could change all store's sort orders
+                // $category = $this->categoryFactory->create()->setStoreId('0')->load($categoryId);
+                // $category->setDefaultSortBy('position')->save();
 
-            // set position sort order for all tagalys stores for all categories. assumption: if a category is assigned to tagalys in one store, it has to be assigned to tagalys in other stores that are powered by tagalys.
-            $storesForTagalys = $this->tagalysConfiguration->getStoresForTagalys();
-            foreach ($storesForTagalys as $storeId) {
-              $category = $this->categoryFactory->create()->setStoreId($storeId)->load($categoryId);
-              $category->setDefaultSortBy('position')->save();
+              // set position sort order for all tagalys stores for all categories. assumption: if a category is assigned to tagalys in one store, it has to be assigned to tagalys in other stores that are powered by tagalys.
+              $storesForTagalys = $this->tagalysConfiguration->getStoresForTagalys();
+              foreach ($storesForTagalys as $storeId) {
+                $category = $this->categoryFactory->create()->setStoreId($storeId)->load($categoryId);
+                if ($category->getDefaultSortBy() != 'position') {
+                  $category->setDefaultSortBy('position')->save();
+                }
+              }
             }
           }
 
