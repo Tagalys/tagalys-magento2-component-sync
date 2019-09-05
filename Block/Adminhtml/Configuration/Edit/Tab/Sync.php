@@ -79,14 +79,13 @@ class Sync extends Generic
         $setupStatus = $this->tagalysConfiguration->getConfig('setup_status');
         $setupComplete = ($setupStatus == 'completed');
 
-        if ($setupComplete == false) {
-            $syncNoteFieldset = $form->addFieldset('sync_note_fieldset', array(
-                'style'   => "width:100%",
-            ));
-            $syncNoteFieldset->addField('sync_note', 'note', array(
-                'after_element_html' =>'<b>If you have Cron enabled, sync is automatic. If not, please use the manual sync option and keep this browser window open.<br><br>Once all stores are synced, Tagalys features will be enabled automatically.<br><br>If you have any issues, please <a href="mailto:cs@tagalys.com">email us</a>.</b>' 
-            ));
-        }
+        $syncNoteFieldset = $form->addFieldset('sync_note_fieldset', array(
+            'legend' => __('Sync Instructions'),
+            'style'   => "width:100%",
+        ));
+        $syncNoteFieldset->addField('sync_note', 'note', array(
+            'after_element_html' => '<b>Please run the sync Commands via your crontab to sync automatically. Instructions are <a href="https://www.tagalys.com/docs/platforms/magento2/installation-setup/#cron" target="_blank">here</a>.<br><br>You can temporarily use manual sync option and keep this browser window open, but this will not keep products in sync after you close this window.<br><br>If you have any issues, please <a href="mailto:support@tagalys.com">email us</a>.</b>' 
+        ));
 
         $syncFieldset = $form->addFieldset(
             'sync_fieldset',
@@ -96,16 +95,16 @@ class Sync extends Generic
             'label' => 'Status',
             'text' => '<span id="note_sync_status"></span>'
         ));
+        $syncFieldset->addField("sync_control_auto_note", 'note', array(
+            'label' => 'Sync via Cron',
+            'text' => 'If you have <a href="https://www.tagalys.com/docs/platforms/magento2/installation-setup/#cron" target="_blank">setup your crontab</a>, sync is automatic.'
+        ));
         $syncFieldset->addField("sync_control_manual_note", 'note', array(
             'label' => 'Sync Manually',
             'text' => '<strong>You\'ll have to keep this browser window open and stay connected to the Internet for manual sync to work.</strong>'
         ));
         $syncFieldset->addField("sync_control_manual", 'note', array(
             'text' => '<a id="tagalys-toggle-manual-sync" href="#" target="_blank" class="tagalys-button-important" onclick="tagalysToggleManualSync(); return false;">Sync Now</a>'
-        ));
-        $syncFieldset->addField("sync_control_auto_note", 'note', array(
-            'label' => 'Sync via Cron',
-            'text' => 'If you have Cron enabled, sync is automatic.'
         ));
 
         foreach ($this->tagalysConfiguration->getStoresForTagalys() as $key => $storeId) {

@@ -110,12 +110,11 @@ class Listingpages extends Generic
             'title' => 'Render category pages UI using',
             'options' => array(
                 'platform' => __('Magento (recommended)'),
-                'tagalys_js' => __('Tagalys JavaScript')
+                'tagalys_js' => __('Tagalys JavaScript (legacy option)')
             ),
             'required' => true,
             'style' => 'width:100%',
-            'value' => $this->tagalysConfiguration->getConfig("listing_pages:rendering_method"),
-            'after_element_html' => '<span style="display: block; margin-top:5px">Not sure how to decide? <a href="https://tagalys.freshdesk.com/support/solutions/articles/26000037028-powering-magento-category-pages-with-tagalys/preview" target="_blank">Read this.</a></span>',
+            'value' => $this->tagalysConfiguration->getConfig("listing_pages:rendering_method")
         ));
 
         //Magento Render mode

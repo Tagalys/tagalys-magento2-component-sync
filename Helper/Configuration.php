@@ -70,11 +70,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             }
             if ($allStoresCompleted) {
                 $this->setConfig("setup_status", 'completed');
-                $modulesToActivate = array('search_suggestions', 'search', 'mpages', 'recommendations', 'mystore');
-                $this->tagalysApi->log('info', 'All stores synced. Enabling Tagalys features.', array('modulesToActivate' => $modulesToActivate));
-                foreach($modulesToActivate as $moduleToActivate) {
-                    $this->setConfig("module:$moduleToActivate:enabled", '1');
-                }
+                $this->tagalysApi->log('info', 'All stores synced. Setup complete.', array());
             }
         }
     }

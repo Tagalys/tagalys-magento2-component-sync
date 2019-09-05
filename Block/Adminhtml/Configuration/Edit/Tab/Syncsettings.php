@@ -102,41 +102,17 @@ class Syncsettings extends Generic
 
         $syncSettingsFieldset->addField('periodic_full_sync', 'select', array(
             'name' => 'periodic_full_sync',
-            'label' => 'Daily full sync',
-            'title' => 'Daily full sync',
+            'label' => 'Periodic full sync',
+            'title' => 'Periodic full sync',
             'options' => array(
                 '0' => __('No'),
                 '1' => __('Yes'),
             ),
             'required' => true,
             'style' => 'width:100%',
-            'value' => $this->tagalysConfiguration->getConfig("periodic_full_sync")
+            'value' => $this->tagalysConfiguration->getConfig("periodic_full_sync"),
+            'after_element_html' => '<small>Frequency is defined in your Cron file</small>'
         ));
-
-
-        $setupStatus = $this->tagalysConfiguration->getConfig('setup_status');
-
-        if ($setupStatus != 'completed') {
-            $syncSettingsFieldset->addField('search_box_selector', 'text', array(
-                'name'      => 'search_box_selector',
-                'label'     => __('Search box selector'),
-                'value'  => $this->tagalysConfiguration->getConfig("search_box_selector"),
-                'required'  => true,
-                'style'   => "width:100%",
-                'after_element_html' => '<small>Please consult with your tech team or <a href="mailto:cs@tagalys.com">contact us</a>. <br>This can be any jQuery selector.<br>Eg: #search / .search-field / [type="search"]</small>',
-                'tabindex' => 1
-            ));
-
-            $syncSettingsFieldset->addField('suggestions_align_to_parent_selector', 'text', array(
-                'name'      => 'suggestions_align_to_parent_selector',
-                'label'     => __('Align suggestions to search box parent'),
-                'value'  => $this->tagalysConfiguration->getConfig("suggestions_align_to_parent_selector"),
-                'required'  => false,
-                'style'   => "width:100%",
-                'after_element_html' => '<small>If you want to align the search suggestions popup under a parent of the search box instead of the search box itself, specify the selector here.<br>This can be any jQuery selector.<br>Eg: #search-and-icon-container</small>',
-                'tabindex' => 1
-            ));
-        }
 
         $imageFieldset = $form->addFieldset(
             'image_settings_fieldset',
