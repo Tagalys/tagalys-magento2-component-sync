@@ -442,6 +442,9 @@
         tgls_jq('#store_id_for_category_pages').change(function() {
             updateStoreCategoriesVisibility();
         });
+        tgls_jq('select[id^="enable_smart_page_store_"]').change(function() {
+            checkIfSmartPagesEnabled();
+        });
         tgls_jq('#understand_and_agree').keyup(function() {
             updateFromIAgree()
         }).bind('paste', function() {
@@ -516,9 +519,21 @@
                 } else {
                     tgls_jq('.categories-for-tagalys-store').parents('.fieldset-wrapper').show();
                 }
+                checkIfSmartPagesEnabled();
             } else {
                 tgls_jq('.categories-for-tagalys-store').parents('.fieldset-wrapper').hide();
             }
+        }
+
+        function checkIfSmartPagesEnabled() {
+            tgls_jq('select[id^="enable_smart_page_store_"]').each(function(i, elem) {
+                var $smartPageDivs = tgls_jq(elem).parents('.admin__fieldset').children('div[class*="smart_page_parent_category"]');
+                if(tgls_jq(elem).val() == 1){
+                    $smartPageDivs.show();
+                } else {
+                    $smartPageDivs.hide();
+                }
+            });
         }
     })
 </script>

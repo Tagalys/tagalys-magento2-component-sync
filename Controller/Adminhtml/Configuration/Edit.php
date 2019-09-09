@@ -1,8 +1,8 @@
 <?php
   namespace Tagalys\Sync\Controller\Adminhtml\Configuration;
 
-  class Edit extends \Magento\Backend\App\Action
-  {
+class Edit extends \Magento\Backend\App\Action
+{
 
     protected function _isAllowed()
     {
@@ -32,7 +32,9 @@
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\Catalog\Model\CategoryRepository $categoryRepository,
         \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
-        \Magento\Indexer\Model\IndexerFactory $indexerFactory
+        \Magento\Indexer\Model\IndexerFactory $indexerFactory,
+        \Magento\Catalog\Model\CategoryFactory $categoryFactory,
+        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
     ) {
         parent::__construct($context);
         $this->resultPageFactory = $resultPageFactory;
@@ -47,6 +49,8 @@
         $this->categoryRepository = $categoryRepository;
         $this->tagalysCategoryFactory = $tagalysCategoryFactory;
         $this->indexerFactory = $indexerFactory;
+        $this->categoryFactory = $categoryFactory;
+        $this->scopeConfig = $scopeConfig;
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
         $this->logger = new \Zend\Log\Logger();
         $this->logger->addWriter($writer);
@@ -167,6 +171,20 @@
                             ));
                             if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {
                                 $params[ 'categories_for_tagalys_store_' . $storeId] = array();
+                            }
+                            if($params["enable_smart_page_store_$storeId"] == 1){
+                                $this->tagalysConfiguration->setConfig("enable_smart_page_store_$storeId", 1);
+                                if($params["smart_page_parent_category_name_store_$storeId"] == ""){
+                                    $params["smart_page_parent_category_name_store_$storeId"] = 'Tagalys';
+                                }
+                                if($params["smart_page_parent_category_url_key_store_$storeId"] == ""){
+                                    $params["smart_page_parent_category_url_key_store_$storeId"] = 'buy';
+                                }
+                                try{
+                                    $this->updateSmartPageParentCategory($storeId, $params);
+                                } catch(\Exception $e) {
+                                    $this->messageManager->addErrorMessage($e->getMessage());
+                                }
                             }
                             $categoryIds = array();
                             if (count($params['categories_for_tagalys_store_'. $storeId]) > 0) {
@@ -306,5 +324,22 @@
         $this->tagalysConfiguration->setConfig('api_credentials', $params['api_credentials']);
         $this->tagalysApi->cacheApiCredentials();
         return true;
+    }
+    
+    private function updateSmartPageParentCategory($storeId, $params) {
+        $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
+        $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
+        $categoryDetails = [
+            'name' => $params["smart_page_parent_category_name_store_$storeId"],
+            'url_key' => strtolower($params["smart_page_parent_category_url_key_store_$storeId"]),
+        ];
+        if($categoryId) {
+            $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, $categoryDetails);
+        } else {
+            $this->tagalysCategoryHelper->createTagalysParentCategory($storeId, $categoryDetails);
+        }
+        $urlKey = $params["smart_page_parent_category_url_key_store_$storeId"];
+        $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
+        $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);
     }
   }

@@ -97,7 +97,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'product_image_hover_attribute' => '',
                 'product_thumbnail_quality' => '80',
                 'category_pages_rendering_method' => 'magento',
-                'tagalys_plan_features' => '{"number_of_category_pages":5}'
+                'tagalys_plan_features' => '{"number_of_category_pages":500}',
+                'legacy_mpage_categories' => '[]'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
@@ -231,32 +232,41 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $flat_category_list = $this->getAllCategories($storeId);
         $selected_categories = $this->getCategoriesForTagalys($storeId);
         $tree = array();
+        $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
+        $tagalysCategoryHelper = $objectManager->create('Tagalys\Sync\Helper\Category');
+        $parentCategory = $tagalysCategoryHelper->getTagalysParentCategory($storeId);
         foreach ($flat_category_list as $category){
-            foreach($selected_categories as $selected_category){
-                if ($selected_category == $category['value']) {
-                    $category['selected'] = true;
-                    $category_sync_status = $this->tagalysCategoryFactory->create()
-                        ->getCollection()
-                        ->addFieldToFilter('store_id', $storeId)
-                        ->addFieldToFilter('category_id', $selected_category)
-                        ->addFieldToSelect(array('status', 'positions_synced_at'))
-                        ->getFirstItem();
-                    $category['status'] = $category_sync_status['status'];
-                    $category['positions_synced_at'] = $category_sync_status['positions_synced_at'];
-                }
-            }
             $category_id_path = explode('/',$category['value']);
+            $category_label_path = explode(' |>| ',$category['label']);
             if($category_id_path[0] == 1){
                 array_splice($category_id_path, 0, 1);
             }
-            $category_label_path = explode(' |>| ',$category['label']);
+            $parentId = $category_id_path[count($category_id_path) - 2];
+            if($parentId == $parentCategory){
+                continue;
+            } else {
+                foreach($selected_categories as $selected_category_path){
+                    if ($selected_category_path == $category['value']) {
+                        $category['selected'] = true;
+                        $tmp = explode('/', $selected_category_path);
+                        $selected_category = end($tmp);
+                        $category_sync_status = $this->tagalysCategoryFactory->create()
+                            ->getCollection()
+                            ->addFieldToFilter('store_id', $storeId)
+                            ->addFieldToFilter('category_id', $selected_category)
+                            ->addFieldToSelect(array('status', 'positions_synced_at'))
+                            ->getFirstItem();
+                        $category['status'] = $category_sync_status['status'];
+                        $category['positions_synced_at'] = $category_sync_status['positions_synced_at'];
+                    }
+                }
+            }
             $tree = $this->constructTree($category_id_path, $category_label_path, $tree, $category);
         }
         return json_encode($tree);
     }
 
     private function constructTree($category_id_path, $category_label_path, $children, $category_object){
-        // var_dump($category_object);
         if(count($category_id_path)==1){
         // Append to array
         $node_exist = false;
@@ -337,6 +347,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 } else {
                 return array('icon' => 'fa fa-bolt', 'text' => ' (Powered by Tagalys)');
                 }
+            case 'tagalys_created':
+                return array('icon' => 'fa fa-bolt', 'text' => ' (Created by Tagalys)');
             default:
                 return array('icon' => 'hidden', 'text' => '');
         }
@@ -382,6 +394,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $productsCount = $this->productFactory->create()->getCollection()->setStoreId($storeId)->addStoreFilter($storeId)->addAttributeToFilter('status', 1)->addAttributeToFilter('visibility', array("neq" => 1))->count();
         $storeUrl = $this->storeManager->getStore($storeId)->getUrl();
         $storeDomain = parse_url($storeUrl)['host'];
+        $pluginVersion = '1.7.0';
         $configuration = array(
             'id' => $storeId,
             'label' => $store->getName(),
@@ -393,7 +406,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'tag_sets' => $tagSetsAndCustomFields['tag_sets'],
             'sort_options' =>  $this->getSortOptions($storeId),
             'products_count' => $productsCount,
-            'domain' => $storeDomain
+            'domain' => $storeDomain,
+            'platform_details' => ['plugin_version' => $pluginVersion]
         );
 
         $configurationObj = new \Magento\Framework\DataObject(array('configuration' => $configuration, 'store_id' => $storeId));

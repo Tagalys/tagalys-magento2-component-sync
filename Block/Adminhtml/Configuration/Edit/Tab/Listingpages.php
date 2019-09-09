@@ -53,6 +53,7 @@ class Listingpages extends Generic
         \Tagalys\Sync\Helper\Category $tagalysCategory,
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Magento\Store\Model\StoreManagerInterface $storeManagerInterface,
+        \Magento\Catalog\Model\CategoryFactory $categoryFactory,
         array $data = []
     ) {
         $this->_yesNo = $yesNo;
@@ -61,6 +62,7 @@ class Listingpages extends Generic
         $this->tagalysCategory = $tagalysCategory;
         $this->tagalysApi = $tagalysApi;
         $this->storeManagerInterface = $storeManagerInterface;
+        $this->categoryFactory = $categoryFactory;
         parent::__construct($context, $registry, $formFactory, $data);
     }
 
@@ -244,10 +246,37 @@ class Listingpages extends Generic
             $group = $store->getGroup();
             $website = $group->getWebsite();
             $storeDisplayLabel = $website->getName() . ' / '. $group->getName() . ' / ' . $store->getName();
+            $smartPageParentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
+            $smartPageParentCategory = $this->categoryFactory->create()->load($smartPageParentCategoryId);
+            
             $storeListingPagesFieldset = $form->addFieldset(
                 'store_'.$storeId.'_listing_pages',
                 ['legend' => 'Categories for store: '.$storeDisplayLabel, 'collapsable' => true]
             );
+            $storeListingPagesFieldset->addField("enable_smart_page_store_$storeId", 'select', array(
+                'name' => "enable_smart_page_store_$storeId",
+                'label' => "Enable Smart-Pages",
+                'options' => array(
+                    '1' => __('Yes'),
+                    '0' => __('No')
+                ),
+                'after_element_html' => '<p><small style="font-weight: bold">Enable to instantly create dynamic pages from Tagalys Dashboard</small></p>',
+                'data-store-id' => 3,
+                'style' => 'width:100%',
+                'value'  => $this->tagalysConfiguration->getConfig("enable_smart_page_store_$storeId"),
+            ));
+            $storeListingPagesFieldset->addField("smart_page_parent_category_name_store_$storeId", 'text', array(
+                'name' => "smart_page_parent_category_name_store_$storeId",
+                'label' => "Smart-Page parent category name",
+                'value'  => $smartPageParentCategory->getName(),
+                'placeholder' => 'Tagalys (default)',
+            ));
+            $storeListingPagesFieldset->addField("smart_page_parent_category_url_key_store_$storeId", 'text', array(
+                'name' => "smart_page_parent_category_url_key_store_$storeId",
+                'label' => "Smart-Page parent category url_key",
+                'value'  => $smartPageParentCategory->getUrlKey(),
+                'placeholder' => 'buy (default)',
+            ));
             $storeListingPagesFieldset->addField("categories_for_tagalys_store_$storeId", 'multiselect', array(
                 'name' => "categories_for_tagalys_store_$storeId",
                 'onclick' => "return false;",

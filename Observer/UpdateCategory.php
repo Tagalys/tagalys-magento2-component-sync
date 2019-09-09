@@ -34,7 +34,8 @@ class UpdateCategory implements \Magento\Framework\Event\ObserverInterface
             }
             $this->queueHelper->insertUnique($modifiedProductIds);
             if (count($insertedProductIds) > 0) {
-                $this->tagalysCategory->updateProductCategoryPositionsIfRequired($insertedProductIds, array($category->getId()), 'category');
+                $this->tagalysCategory->pushDownProductsIfRequired($insertedProductIds, array($category->getId()), 'category');
+                $this->tagalysCategory->categoryUpdateAfter($category);
             }
         } catch (\Exception $e) { }
     }

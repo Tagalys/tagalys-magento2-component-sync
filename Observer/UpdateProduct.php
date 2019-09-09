@@ -20,7 +20,7 @@ class UpdateProduct implements \Magento\Framework\Event\ObserverInterface
             try{
                 $categoryIds = $product->getCategoryIds();
             } catch(Exception $ignored) {}
-            $this->tagalysCategory->updateProductCategoryPositionsIfRequired(array($product->getId()), $categoryIds, 'product');
+            $this->tagalysCategory->pushDownProductsIfRequired(array($product->getId()), $categoryIds, 'product');
         } catch (\Exception $e) { }
     }
 

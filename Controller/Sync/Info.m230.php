@@ -193,6 +193,49 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                         $this->tagalysConfiguration->setConfig('tagalys_plan_features', $params['plan_features'], true);
                         $response = array('updated' => true);
                         break;
+                    case 'create_category':
+                        try{
+                            $categoryId = $this->tagalysCategoryHelper->createCategory($params['store_id'], $params['category_details']);
+                            $response = ['status'=> 'OK', 'category_id'=> $categoryId, 'message' => ''];
+                        } catch(\Exception $e){
+                            $response = ['status'=> 'error', 'message' => $e->getMessage()];
+                        }
+                        break;
+                    case 'update_category':
+                        try{
+                            $this->tagalysCategoryHelper->updateCategoryDetails($params['category_id'], $params['category_details']);
+                            $response = ['status'=>'OK'];
+                        } catch(\Exception $e){
+                            $response = ['status'=> 'error', 'message' => $e->getMessage()];
+                        }
+                        break;
+                    case 'delete_tagalys_category':
+                        try{
+                            $this->tagalysCategoryHelper->deleteTagalysCategory($params['category_id']);
+                            $response = ['status'=>'OK'];
+                        } catch(\Exception $e){
+                            $response = ['status'=> 'error', 'message' => $e->getMessage()];
+                        }
+                        break;
+                    case 'assign_products_to_category_and_remove':
+                        try{
+                            $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['category_id'], $params['product_positions']);
+                            $response = ['status' => 'OK'];
+                        } catch(\Exception $e){
+                            $response = ['status'=> 'error', 'message' => $e->getMessage()];
+                        }
+                        break;
+                    case 'update_product_positions':
+                        try{
+                            $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['category_id'], $params['product_positions']);
+                            $response = ['status' => 'OK'];
+                        } catch(\Exception $e){
+                            $response = ['status'=> 'error', 'message' => $e->getMessage()];
+                        }
+                        break;
+                    case 'ping':
+                        $response = ['status' => 'OK', 'message' => 'pong'];
+                        break;
                 }
             } else {
                 $this->tagalysApi->log('warn', 'Invalid identification in InfoAction', array('params' => $params));

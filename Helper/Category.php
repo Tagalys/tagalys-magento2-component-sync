@@ -8,6 +8,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
     \Tagalys\Sync\Helper\Api $tagalysApi,
     \Magento\Catalog\Model\ResourceModel\Category\Collection $categoryCollection,
+    \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollectionFactory,
     \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
     \Magento\Catalog\Model\CategoryFactory $categoryFactory,
     \Magento\Store\Model\StoreManagerInterface $storeManagerInterface,
@@ -20,13 +21,17 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     \Magento\Framework\Event\Manager $eventManager,
     \Magento\Framework\App\ProductMetadataInterface $productMetadataInterface,
     \Magento\Indexer\Model\IndexerFactory $indexerFactory,
-    \Magento\Framework\Math\Random $random
+    \Magento\Framework\Math\Random $random,
+    \Magento\Framework\Registry $registry,
+    \Magento\UrlRewrite\Model\UrlRewriteFactory $urlRewriteFactory,
+    \Magento\UrlRewrite\Model\ResourceModel\UrlRewriteCollection $urlRewriteCollection
   ) {
     $this->tagalysConfiguration = $tagalysConfiguration;
     $this->random = $random;
-    // $this->logger = new \Zend\Log\Logger();
+    $this->_registry = $registry;
     $this->tagalysApi = $tagalysApi;
     $this->categoryCollection = $categoryCollection;
+    $this->categoryCollectionFactory = $categoryCollectionFactory;
     $this->tagalysCategoryFactory = $tagalysCategoryFactory;
     $this->productFactory = $productFactory;
     $this->categoryFactory = $categoryFactory;
@@ -39,6 +44,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     $this->eventManager = $eventManager;
     $this->productMetadataInterface = $productMetadataInterface;
     $this->indexerFactory = $indexerFactory;
+    $this->urlRewriteFactory = $urlRewriteFactory;
+    $this->urlRewriteCollection = $urlRewriteCollection;
     
     $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_commands.log');
     $this->tagalysCommandsLogger = new \Zend\Log\Logger();
@@ -572,7 +579,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
           return false;
       }
   }
-    public function updateProductCategoryPositionsIfRequired($productIds, $productCategories = null, $indexerToRun = 'product') {
+    public function pushDownProductsIfRequired($productIds, $productCategories = null, $indexerToRun = 'product') {
       // called from observers when new products are added to categories - in position ascending order, they should be positioned at the bottom of the page.
       $listingpagesEnabled = $this->tagalysConfiguration->getConfig('module:listingpages:enabled');
       if($listingpagesEnabled == '1') {
@@ -678,4 +685,253 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     $tagalysCategories = array_unique($tagalysCategories);
     return $tagalysCategories;
   }
+  
+    public function performCategoryPositionUpdate($categoryId, $positions) {
+        $sortOrder = $this->tagalysConfiguration->getConfig('listing_pages:position_sort_direction');
+        if($sortOrder == 'asc') {
+            $this->_updatePositions($categoryId, $positions);
+        } else {
+            $this->_updatePositionsReverse($categoryId, $positions);
+        }
+        $this->reindexUpdatedCategories($categoryId);
+    }
+    
+    public function createTagalysParentCategory($storeId, $categoryDetails) {
+        $rootCategoryId = $this->storeManagerInterface->getStore($storeId)->getRootCategoryId();
+        $categoryDetails['is_active'] = false;
+        $categoryId = $this->_createCategory($rootCategoryId, $categoryDetails);
+        if($categoryId){
+            $this->tagalysConfiguration->setConfig("tagalys_parent_category_store_$storeId", $categoryId);
+        }
+        return $categoryId;
+    }
+
+    public function createCategory($storeId, $categoryDetails) {
+        $parentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
+        if ($parentCategoryId == null) {
+            throw new \Exception("Tagalys parent category not created. Please enable Smart Pages in Tagalys Configuration > Listing Pages");
+        }
+        $categoryDetails['is_active'] = true;
+        $categoryDetails['include_in_menu'] = false;
+        $categoryDetails['default_sort_by'] = 'position';
+        $categoryDetails['display_mode'] = \Magento\Catalog\Model\Category::DM_PRODUCT;
+        $categoryId = $this->_createCategory($parentCategoryId, $categoryDetails);
+        return $categoryId;
+    }
+
+    public function updateCategoryDetails($categoryId, $categoryDetails) {
+        $category = $this->categoryFactory->create()->load($categoryId);
+        if($category->getId() == null){
+            throw new \Exception("Platform category not found");
+        }
+        $categoryDetails['default_sort_by'] = 'position';
+        $category->setStoreId(0)->addData($categoryDetails);
+        $category->save();
+        $this->categoryUpdateAfter($category);
+    }
+
+    public function categoryUpdateAfter($category){
+        // TODO: Remove in future releases
+        if($this->isLegacyMpageCategory($category)){
+            $urlRewrite = $this->urlRewriteCollection->addFieldToFilter('target_path', "catalog/category/view/id/{$category->getId()}")->getFirstItem();
+            $urlRewrite->setRequestPath("m/{$category->getUrlKey()}")->save();
+        }
+    }
+
+    public function deleteTagalysCategory($categoryId) {
+        $category = $this->categoryFactory->create()->load($categoryId);
+        if($category->getId() === null){
+            return true;
+        }
+        $allowDelete = $this->isTagalysCreated($categoryId);
+        if($allowDelete){
+            $this->_registry->register("isSecureArea", true);
+            $category->delete();
+        }
+        throw new \Exception("This category cannot be deleted because it wasn't created by Tagalys");
+    }
+
+    public function _createCategory($parentId, $categoryDetails){
+        $category = $this->categoryFactory->create();
+        $parent = $this->categoryFactory->create()->load($parentId);
+        $category->setData($categoryDetails);
+        $category->addData([
+            'parent_id' => $parentId,
+            'path' => $parent->getPath(),
+            'default_sort_by' => 'position',
+            'display_mode' => \Magento\Catalog\Model\Category::DM_PRODUCT,
+            'include_in_menu' => 0
+        ]);
+        $category->save();
+        $categoryId = $this->categoryCollectionFactory->create()
+            ->addAttributeToFilter('url_key', $categoryDetails['url_key'])
+            ->addAttributeToSelect('entity_id')
+            ->getFirstItem()
+            ->getId();
+        return $categoryId;
+    }
+
+    public function bulkAssignProductsToCategoryAndRemove($categoryId, $productPositions) {
+        if($this->isTagalysCreated($categoryId)){
+          $productsToRemove = $this->getProductsNotIn($categoryId, $productPositions);
+          $this->bulkAssignProductsToCategoryViaDb($categoryId, $productPositions);
+          $this->_paginateSqlRemove($categoryId, $productsToRemove);
+          $this->reindexUpdatedCategories();
+        }
+    }
+
+    private function getProductsNotIn($categoryId, $productPositions){
+        $tableName = $this->resourceConnection->getTableName('catalog_category_product');
+        $sql = "SELECT product_id FROM $tableName WHERE category_id=$categoryId";
+        $select = $this->runSqlSelect($sql);
+        $productsInTable = [];
+        foreach($select as $row){
+            $productsInTable[] = $row['product_id'];
+        }
+        return array_diff($productsInTable, $productPositions);
+    }
+
+    public function bulkAssignProductsToCategoryViaDb($categoryId, $productPositions) {
+        if(count($productPositions)>0){
+            $tableName = $this->resourceConnection->getTableName('catalog_category_product');
+            $sql = "REPLACE $tableName (category_id, product_id, position) VALUES ";
+            $this->paginateSqlInsert($sql, $categoryId, $productPositions);
+            $this->updatedCategories[] = $categoryId;
+        }
+    }
+
+    private function paginateSqlInsert($sql, $categoryId, $productPositions) {
+        $rows = [];
+        $productCount = count($productPositions);
+        for ($index=1; $index <= $productCount; $index++) {
+            $productId = $productPositions[$index-1];
+            $rows[] = "($categoryId, $productId, $index)";
+            if( $index % 100 == 0 || $index == $productCount ){
+                $values = implode(', ', $rows);
+                $query = $sql . $values . ';';
+                $rows = [];
+                $this->runSql($query);
+            }
+        }
+    }
+
+    private function _paginateSqlRemove($categoryId, $products){
+        $perPage = 100;
+        $offset = 0;
+        $tableName = $this->resourceConnection->getTableName('catalog_category_product');
+        $productsToDelete = array_slice($products, $offset, $perPage);
+        while(count($productsToDelete)>0){
+            $productsToDelete = implode(', ', $productsToDelete);
+            $sql = "DELETE FROM $tableName WHERE category_id=$categoryId AND product_id IN ($productsToDelete);";
+            $this->runSql($sql);
+            $offset += $perPage;
+            $productsToDelete = array_slice($products, $offset, $perPage);
+        }
+        $this->updatedCategories[] = $categoryId;
+    }
+
+    private function runSql($sql) {
+        // Not for SELECT
+        $conn = $this->resourceConnection->getConnection();
+        $conn->query($sql);
+    }
+    private function runSqlSelect($sql) {
+        $conn = $this->resourceConnection->getConnection();
+        return $conn->fetchAll($sql);
+    }
+    public function reindexUpdatedCategories($categoryIds=null){
+        if (isset($categoryId)){
+            array_push($this->updatedCategories, $categoryIds);
+        }
+        $this->updatedCategories = array_unique($this->updatedCategories);
+        $indexer = $this->indexerFactory->create()->load('catalog_category_product');
+        $indexer->reindexList($this->updatedCategories);
+        foreach($this->updatedCategories as $categoryId) {
+            // clear magento cache
+            $category = $this->categoryFactory->create()->load($categoryId);
+            $this->eventManager->dispatch('clean_cache_by_tags', ['object' => $category]);
+        }
+        $this->updatedCategories = [];
+        // Tagalys custom cache clear event
+        $categoryIdsObj = new \Magento\Framework\DataObject(array('category_ids' => $this->updatedCategories));
+        $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdsObj]);
+    }
+
+    private function isTagalysCreated($categoryId) {
+        if(!empty($categoryId)){
+            $parentCategories = $this->getTagalysParentCategory();
+            if(in_array($categoryId, $parentCategories)){
+                return true;
+            }
+            $category = $this->categoryFactory->create()->load($categoryId);
+            if($category->getId()){
+                $categoryPath = explode('/', $category->getPath());
+                $parentId = $categoryPath[count($categoryPath) - 2];
+                if(in_array($parentId, $parentCategories)){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    public function getTagalysCreatedCategories() {
+        $tagalysCreated = $this->getTagalysParentCategory();
+        $categories = $this->categoryCollection->setStoreId(0)->addAttributeToSelect('entity_id')
+                        ->addAttributeToFilter('parent_id', ['in' => $tagalysCreated]);
+        foreach($categories as $category){
+            $tagalysCreated[] = $category->getId();
+        }
+        return $tagalysCreated;
+    }
+
+    public function getTagalysParentCategory($storeId=null){
+        if (isset($storeId)){
+            $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
+        } else {
+            $categoryId = [];
+            $websiteStores = $this->tagalysConfiguration->getAllWebsiteStores();
+            foreach($websiteStores as $sid){
+                $sid = $sid['value'];
+                $catId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$sid");
+                if($catId != null){
+                    $categoryId[] = $catId;
+                }
+            }
+        }
+        return $categoryId;
+    }
+
+    public function redirectToCategoryUrl($storeId, $categoryId, $path){
+        $category = $this->categoryFactory->create()->load($categoryId);
+        $urlPath = $category->getUrlPath();
+        if( substr($category->getUrl(), -5) === '.html' ){
+            $urlPath.='.html';
+        }
+        $this->createUrlRewrite($storeId, $path, $urlPath, 301);
+    }
+
+    private function createUrlRewrite($storeId, $requestPath, $targetPath, $redirectType) {
+        $urlRewriteModel = $this->urlRewriteFactory->create();
+        $urlRewriteModel->setStoreId($storeId);
+        $urlRewriteModel->setIsSystem(0);
+        $urlRewriteModel->setRequestPath($requestPath);
+        $urlRewriteModel->setTargetPath($targetPath);
+        $urlRewriteModel->setRedirectType($redirectType);
+        $urlRewriteModel->setDescription("Created by Tagalys");
+        $urlRewriteModel->save();
+    }
+
+    public function updateCategoryUrlRewrite($storeId, $categoryId, $path){
+        $targetPath = "catalog/category/view/id/$categoryId";
+        $urlRewrite = $this->urlRewriteCollection->addStoreFilter($storeId)->addFieldToFilter('target_path', $targetPath)->addFieldToFilter('is_autogenerated', 1)->getFirstItem();
+        $urlRewrite->setRequestPath($path);
+        $urlRewrite->save();
+    }
+
+    private function isLegacyMpageCategory($category){
+        $parentId = $category->getParentId();
+        $legacyCategories = $this->tagalysConfiguration->getConfig('legacy_mpage_categories', true);
+        return in_array($parentId, $legacyCategories);
+    }
 }
