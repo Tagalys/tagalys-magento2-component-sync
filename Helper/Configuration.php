@@ -407,7 +407,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'sort_options' =>  $this->getSortOptions($storeId),
             'products_count' => $productsCount,
             'domain' => $storeDomain,
-            'platform_details' => ['plugin_version' => $pluginVersion]
+            'platform_details' => ['plugin_version' => $this->tagalysApi->getPluginVersion()]
         );
 
         $configurationObj = new \Magento\Framework\DataObject(array('configuration' => $configuration, 'store_id' => $storeId));

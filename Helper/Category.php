@@ -840,7 +840,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return $conn->fetchAll($sql);
     }
     public function reindexUpdatedCategories($categoryIds=null){
-        if (isset($categoryId)){
+        if (isset($categoryIds)){
             array_push($this->updatedCategories, $categoryIds);
         }
         $this->updatedCategories = array_unique($this->updatedCategories);

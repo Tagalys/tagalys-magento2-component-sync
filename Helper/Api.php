@@ -17,8 +17,14 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
         $this->tagalysLogger = new \Zend\Log\Logger();
         $this->tagalysLogger->addWriter($writer);
+
+        $this->pluginVersion = '1.7.0';
         
         $this->cacheApiCredentials();
+    }
+
+    public function getPluginVersion() {
+        return $this->pluginVersion;
     }
 
     public function cacheApiCredentials() {
@@ -40,7 +46,7 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
         $this->tagalysLogger->info(json_encode(compact('level', 'message', 'data')));
         if ($this->apiServer != false && $level != 'local') {
             $logParams = array('log_level' => $level, 'log_message' => $message);
-            $logParams['log_client'] = array('platform' => $this->platformIdentifier(), 'platform_version' => $this->productMetadataInterface->getVersion(), 'plugin' => 'Tagalys_Sync', 'plugin_version' => $this->moduleListInterface->getOne('Tagalys_Sync')['setup_version']);
+            $logParams['log_client'] = array('platform' => $this->platformIdentifier(), 'platform_version' => $this->productMetadataInterface->getVersion(), 'plugin' => 'Tagalys_Sync', 'plugin_version' => $this->getPluginVersion());
             if ($data != null) {
                 if (array_key_exists('store_id', $data)) {
                     $logParams['log_store_id'] = $data['store_id'];
@@ -99,7 +105,7 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
                 return false;
             }
             if (array_key_exists('identification', $params)) {
-                $params['identification']['api_client'] = array('platform' => $this->platformIdentifier(), 'platform_version' => $this->productMetadataInterface->getVersion(), 'plugin' => 'Tagalys_Sync', 'plugin_version' => $this->moduleListInterface->getOne('Tagalys_Sync')['setup_version']);
+                $params['identification']['api_client'] = array('platform' => $this->platformIdentifier(), 'platform_version' => $this->productMetadataInterface->getVersion(), 'plugin' => 'Tagalys_Sync', 'plugin_version' => $this->getPluginVersion());
             }
             $url = $this->apiServer . $path;
             $curlHandle = curl_init($url);

@@ -220,6 +220,9 @@ class Info extends \Magento\Framework\App\Action\Action
                             $response = ['status'=> 'error', 'message' => $e->getMessage()];
                         }
                         break;
+                    case 'get_plugin_version':
+                        $response = ['status' => 'OK', 'plugin_version' => $this->tagalysApi->getPluginVersion()];
+                        break;
                     case 'ping':
                         $response = ['status' => 'OK', 'message' => 'pong'];
                         break;
