@@ -108,14 +108,12 @@ class Listingpages extends Generic
 
         $technicalConsiderationsFieldset->addField('category_pages_rendering_method', 'select', array(
             'name' => 'category_pages_rendering_method',
-            'label' => 'Render category pages UI using',
-            'title' => 'Render category pages UI using',
             'options' => array(
-                'platform' => __('Magento (recommended)'),
-                'tagalys_js' => __('Tagalys JavaScript (legacy option)')
+                'platform' => __('Magento'),
+                'tagalys_js' => __('JavaScript (not recommended)')
             ),
             'required' => true,
-            'style' => 'width:100%',
+            'style' => 'width:100%;display:none;',
             'value' => $this->tagalysConfiguration->getConfig("listing_pages:rendering_method")
         ));
 
@@ -292,7 +290,7 @@ class Listingpages extends Generic
             $category_tree_data = htmlspecialchars($this->tagalysConfiguration->getCategoryTreeData($storeId), ENT_QUOTES, 'UTF-8');
             $storeListingPagesFieldset->addField("jtree_wrap_store_$storeId", 'note', array(
                 'label' => '',
-                'text'=>"<input id='categories-jtree-store-{$storeId}-q' /><!--<button style='margin-left: 10px' id='select-all-category-store-{$storeId}' class='tagalys-btn'>Select all</button>--><button style='margin-left: 10px' id='deselect-all-category-store-{$storeId}' class='tagalys-btn'>Deselect all</button><div id='categories-jtree-store-{$storeId}' data-tree='{$category_tree_data}' ></div>"
+                'text'=>"<input id='categories-jtree-store-{$storeId}-q' /><button style='margin-left: 10px' id='select-all-category-store-{$storeId}' class='tagalys-btn'>Select all</button><button style='margin-left: 10px' id='deselect-all-category-store-{$storeId}' class='tagalys-btn'>Deselect all</button><div id='categories-jtree-store-{$storeId}' data-tree='{$category_tree_data}' ></div>"
             ));
         }
 

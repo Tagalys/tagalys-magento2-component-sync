@@ -154,7 +154,7 @@ class Edit extends \Magento\Backend\App\Action
                     if ($params['enable_listingpages'] == '1' && $params['understand_and_agree'] == 'I agree') {
                         $this->tagalysConfiguration->setConfig('module:listingpages:enabled', $params['enable_listingpages']);
                         $this->messageManager->addNoticeMessage("Settings have been saved. Selected categories will be visible in your Tagalys Dashboard within 10 minutes and product positions on these categories will be updated within 15 minutes unless specificed below.");
-                        $this->tagalysConfiguration->setConfig('listing_pages:rendering_method', $params['category_pages_rendering_method']);
+                        // $this->tagalysConfiguration->setConfig('listing_pages:rendering_method', $params['category_pages_rendering_method']);
                         $this->tagalysConfiguration->setConfig('listing_pages:reindex_and_clear_cache_immediately', $params['reindex_and_clear_cache_immediately']);
                         $this->tagalysConfiguration->setConfig('listing_pages:position_sort_direction', $params['position_sort_direction']);
                         $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);

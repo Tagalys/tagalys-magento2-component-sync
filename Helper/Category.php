@@ -709,7 +709,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function createCategory($storeId, $categoryDetails) {
         $parentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
         if ($parentCategoryId == null) {
-            throw new \Exception("Tagalys parent category not created. Please enable Smart Pages in Tagalys Configuration > Listing Pages");
+            throw new \Exception('Please enable "Smart Pages" within Tagalys > Configuration > Listing Pages section in your Magento admin panel to use this feature');
         }
         $categoryDetails['is_active'] = true;
         $categoryDetails['include_in_menu'] = false;
@@ -877,6 +877,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     
     public function getTagalysCreatedCategories() {
         $tagalysCreated = $this->getTagalysParentCategory();
+        $tagalysLegacyCategories = $this->tagalysConfiguration->getConfig('legacy_mpage_categories', true);
+        $tagalysCreated = array_merge($tagalysCreated, $tagalysLegacyCategories);
         $categories = $this->categoryCollection->setStoreId(0)->addAttributeToSelect('entity_id')
                         ->addAttributeToFilter('parent_id', ['in' => $tagalysCreated]);
         foreach($categories as $category){
@@ -934,4 +936,5 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $legacyCategories = $this->tagalysConfiguration->getConfig('legacy_mpage_categories', true);
         return in_array($parentId, $legacyCategories);
     }
+
 }

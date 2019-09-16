@@ -93,6 +93,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'listing_pages:override_layout_name'=> '1column',
                 'listing_pages:position_sort_direction' => 'asc',
                 'listing_pages:reindex_and_clear_cache_immediately' => '1',
+                'listing_pages:rendering_method' => 'platform',
                 'product_image_attribute' => 'small_image',
                 'product_image_hover_attribute' => '',
                 'product_thumbnail_quality' => '80',
@@ -234,7 +235,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $tree = array();
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         $tagalysCategoryHelper = $objectManager->create('Tagalys\Sync\Helper\Category');
-        $parentCategory = $tagalysCategoryHelper->getTagalysParentCategory($storeId);
+        $tagalysCreatedCategories = $tagalysCategoryHelper->getTagalysCreatedCategories();
         foreach ($flat_category_list as $category){
             $category_id_path = explode('/',$category['value']);
             $category_label_path = explode(' |>| ',$category['label']);
@@ -242,7 +243,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 array_splice($category_id_path, 0, 1);
             }
             $parentId = $category_id_path[count($category_id_path) - 2];
-            if($parentId == $parentCategory){
+            if(in_array($parentId, $tagalysCreatedCategories)){
                 continue;
             } else {
                 foreach($selected_categories as $selected_category_path){

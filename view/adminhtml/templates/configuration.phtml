@@ -352,11 +352,11 @@
             if (tree_type == 'category') {
                 multiselect = 'categories_for_tagalys_store_' + storeId;
                 target_div = 'categories-jtree-store-' + storeId;
-                // tgls_jq('#select-all-category-store-' + storeId).on('click', function(e) {
-                //     e.preventDefault();
-                //     e.stopPropagation();
-                //     tgls_jq('#' + target_div).jstree(true).select_all();
-                // });
+                tgls_jq('#select-all-category-store-' + storeId).on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    tgls_jq('#' + target_div).jstree(true).select_all();
+                });
                 tgls_jq('#deselect-all-category-store-' + storeId).on('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
