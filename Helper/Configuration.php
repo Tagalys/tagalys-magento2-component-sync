@@ -98,7 +98,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'product_image_hover_attribute' => '',
                 'product_thumbnail_quality' => '80',
                 'category_pages_rendering_method' => 'magento',
-                'tagalys_plan_features' => '{"number_of_category_pages":500}',
+                'tagalys_plan_features' => '{}',
                 'legacy_mpage_categories' => '[]'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {

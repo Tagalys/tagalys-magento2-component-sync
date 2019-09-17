@@ -96,10 +96,6 @@ class Listingpages extends Generic
             'style' => 'width:100%',
             'value' => $this->tagalysConfiguration->getConfig("module:listingpages:enabled")
         ));
-        $enableFieldSet->addField('category_pages_limit', 'hidden', array(
-            'name' => 'category_pages_limit',
-            'value' => (int)$this->tagalysConfiguration->getPlanFeature("number_of_category_pages")
-        ));
 
         $technicalConsiderationsFieldset = $form->addFieldset(
             'technical_considerations_fieldset',

@@ -379,8 +379,6 @@
                     }
                 }
                 tgls_jq('#' + multiselect).val(r);
-                var categoryPagesLimit = parseInt(tgls_jq('#category_pages_limit').val());
-
                 var totalSelected = 0;
                 tgls_jq.each(tgls_jq('#stores_for_tagalys').val(), function(i, storeId) {
                     var selectorVal = tgls_jq('#categories_for_tagalys_store_' + storeId).val();
@@ -388,16 +386,6 @@
                         totalSelected += selectorVal.length;
                     }
                 });
-
-                if (totalSelected > categoryPagesLimit) {
-                    alert('Your Tagalys plan does not allow you to select more categories. To increase this limt, please contact us.');
-                    tgls_jq('#' + target_div).jstree(true).deselect_node(data.node);
-                    var i, j, r = [];
-                    for (i = 0, j = data.selected.length; i < j; i++) {
-                        r.push(data.instance.get_node(data.selected[i]).original.id);
-                    }
-
-                }
             }).jstree({
                 'plugins': ["checkbox", "search"],
                 'core': {
