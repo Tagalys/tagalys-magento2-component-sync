@@ -70,17 +70,23 @@ class TransferMpages extends Command
                 if($keepOldUrl === '1'){
                     $output->writeln("Creating Legacy Tagalys Category");
                     $rootCategoryId = $this->storeManagerInterface->getStore($storeId)->getRootCategoryId();
-                    $legacyRootCategory = $this->tagalysCategory->_createCategory($rootCategoryId, ['name'=>'Tagalys Legacy Pages', 'url_key'=>'m', 'is_active'=>false]);
                     $legacyCategories = $this->tagalysConfiguration->getConfig('legacy_mpage_categories', true);
-                    $legacyCategories[] = $legacyRootCategory;
-                    $this->tagalysConfiguration->setConfig('legacy_mpage_categories', $legacyCategories, true);
+                    $legacyCategory = $this->categoryCollection->setStoreId($storeId)->addAttributeToSelect('entity_id')->addAttributeToFilter('entity_id', ['in' => $legacyCategories])->getFirstItem();
+                    if(!$legacyCategory->getId()){
+                        $legacyRootCategoryId = $this->tagalysCategory->_createCategory($rootCategoryId, ['name'=>'Tagalys Legacy Pages', 'url_key'=>'m', 'is_active'=>false]);
+                        $legacyCategories[] = $legacyRootCategoryId;
+                        $this->tagalysConfiguration->setConfig('legacy_mpage_categories', $legacyCategories, true);
+                    } else {
+                        $legacyRootCategoryId = $legacyCategory->getId();
+                    }
                 }
                 foreach ($response['mpages'] as $mpage) {
                     $output->writeln("Transferring Mpage: {$mpage['details']['name']}");
-                    $categoryId = $this->tagalysCategory->_createCategory($legacyRootCategory, $mpage['details']);
                     if($keepOldUrl === '1'){
+                        $categoryId = $this->tagalysCategory->_createCategory($legacyRootCategoryId, $mpage['details']);
                         $this->tagalysCategory->updateCategoryUrlRewrite($storeId, $categoryId, 'm/'.$mpage['details']['url_key']);
                     } else {
+                        $categoryId = $this->tagalysCategory->createCategory($storeId, $mpage['details']);
                         $this->tagalysCategory->redirectToCategoryUrl($storeId, $categoryId, 'm/'.$mpage['details']['url_key']);
                     }
                     $res = $this->tagalysApi->clientApiCall('/v1/mpages/set_platform_id', ['platform_id'=>$categoryId, 'mpage_id'=>$mpage['id']]);
