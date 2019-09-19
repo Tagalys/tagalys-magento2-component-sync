@@ -857,22 +857,23 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $this->eventManager->dispatch('tagalys_category_positions_updated', ['tgls_data' => $categoryIdsObj]);
     }
 
-    private function isTagalysCreated($categoryId) {
-        if(!empty($categoryId)){
-            $parentCategories = $this->getTagalysParentCategory();
-            if(in_array($categoryId, $parentCategories)){
-                return true;
-            }
-            $category = $this->categoryFactory->create()->load($categoryId);
-            if($category->getId()){
-                $categoryPath = explode('/', $category->getPath());
-                $parentId = $categoryPath[count($categoryPath) - 2];
-                if(in_array($parentId, $parentCategories)){
-                    return true;
-                }
+    public function isTagalysCreated($category) {
+        if(!is_object($category)){
+            $category = $this->categoryCollection->addAttributeToSelect('parent_id')->addAttributeToFilter('entity_id', $category)->setPage(1,1)->getFirstItem();
+            if(!$category->getId()){
+                return false;
             }
         }
-        return false;
+        $parentCategories = $this->getTagalysParentCategory();
+        if(in_array($category->getId(), $parentCategories)){
+            return true;
+        }
+        if($category->getId()){
+            $parentId = $category->getParentId();
+            if(in_array($parentId, $parentCategories)){
+                return true;
+            }
+        }
     }
     
     public function getTagalysCreatedCategories() {
