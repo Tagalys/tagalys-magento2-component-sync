@@ -38,6 +38,11 @@ class Info extends \Magento\Framework\App\Action\Action
         $this->filesystem = $filesystem;
         $this->tagalysProduct = $tagalysProduct;
         $this->tagalysMpages = $tagalysMpages;
+        
+        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_api.log');
+        $this->logger = new \Zend\Log\Logger();
+        $this->logger->addWriter($writer);
+
         parent::__construct($context);
     }
 
@@ -182,6 +187,7 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'create_category':
                         try{
+                            $this->logger->info("create_category: params: ".json_encode($params));
                             $categoryId = $this->tagalysCategoryHelper->createCategory($params['store_id'], $params['category_details']);
                             $response = ['status'=> 'OK', 'category_id'=> $categoryId, 'message' => ''];
                         } catch(\Exception $e){
@@ -190,6 +196,7 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'update_category':
                         try{
+                            $this->logger->info("update_category: params: ".json_encode($params));
                             $this->tagalysCategoryHelper->updateCategoryDetails($params['category_id'], $params['category_details']);
                             $response = ['status'=>'OK'];
                         } catch(\Exception $e){
@@ -198,6 +205,7 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'delete_tagalys_category':
                         try{
+                            $this->logger->info("delete_tagalys_category: params: ".json_encode($params));
                             $this->tagalysCategoryHelper->deleteTagalysCategory($params['category_id']);
                             $response = ['status'=>'OK'];
                         } catch(\Exception $e){
@@ -206,6 +214,10 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'assign_products_to_category_and_remove':
                         try{
+                            $this->logger->info("assign_products_to_category_and_remove: params: ".json_encode($params));
+                            if($params['product_positions'] == -1){
+                                $params['product_positions'] = [];
+                            }
                             $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['category_id'], $params['product_positions']);
                             $response = ['status' => 'OK'];
                         } catch(\Exception $e){
@@ -214,6 +226,10 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'update_product_positions':
                         try{
+                            $this->logger->info("update_product_positions: params: ".json_encode($params));
+                            if($params['product_positions'] == -1){
+                                $params['product_positions'] = [];
+                            }
                             $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['category_id'], $params['product_positions']);
                             $response = ['status' => 'OK'];
                         } catch(\Exception $e){
@@ -225,6 +241,16 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'ping':
                         $response = ['status' => 'OK', 'message' => 'pong'];
+                        break;
+                    case 'get_tagalys_logs':
+                        try{
+                            $this->logger->info('test log');
+                            ob_start();
+                            passthru('tail -n'. escapeshellarg($params['lines']).' var/log/tagalys_'.escapeshellarg($params['file']).'.log');
+                            $response = ['status' => 'OK', 'message' => explode("\n",trim(ob_get_clean()))];
+                        } catch(\Exception $e) {
+                            $response = ['status' => 'error', 'message' => $e->getMessage()];
+                        }
                         break;
                 }
             } else {

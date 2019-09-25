@@ -50,6 +50,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_commands.log');
         $this->tagalysCommandsLogger = new \Zend\Log\Logger();
         $this->tagalysCommandsLogger->addWriter($writer);
+        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_categories.log');
+        $this->logger = new \Zend\Log\Logger();
+        $this->logger->addWriter($writer);
     }
 
     public function truncate() {
@@ -720,6 +723,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function updateCategoryDetails($categoryId, $categoryDetails) {
+        $this->logger->info("updateCategoryDetails: category_id: $categoryId, categoryDetails: ".json_encode($categoryDetails));
         $category = $this->categoryFactory->create()->load($categoryId);
         if($category->getId() == null){
             throw new \Exception("Platform category not found");
@@ -733,6 +737,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function categoryUpdateAfter($category){
         // TODO: Remove in future releases
         if($this->isLegacyMpageCategory($category)){
+            $this->logger->info("categoryUpdateAfter: Updating url_rewrite for legacy mpage category, category_id: ".$category->getId());
             $urlRewrite = $this->urlRewriteCollection->addFieldToFilter('target_path', "catalog/category/view/id/{$category->getId()}")->getFirstItem();
             $urlRewrite->setRequestPath("m/{$category->getUrlKey()}")->save();
         }
@@ -752,6 +757,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function _createCategory($parentId, $categoryDetails){
+        $this->logger->info("_createCategory: parent_id: $parentId, categoryDetails: ".json_encode($categoryDetails));
         $category = $this->categoryFactory->create();
         $parent = $this->categoryFactory->create()->load($parentId);
         $category->setData($categoryDetails);
@@ -760,7 +766,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             'path' => $parent->getPath(),
             'default_sort_by' => 'position',
             'display_mode' => \Magento\Catalog\Model\Category::DM_PRODUCT,
-            'include_in_menu' => 0
+            'include_in_menu' => 0,
+            'is_anchor' => 1
         ]);
         $category->save();
         $categoryId = $this->categoryCollectionFactory->create()
@@ -844,6 +851,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             array_push($this->updatedCategories, $categoryIds);
         }
         $this->updatedCategories = array_unique($this->updatedCategories);
+        $this->logger->info("reindexUpdatedCategories: categoryIds: ".json_encode($this->updatedCategories));
         $indexer = $this->indexerFactory->create()->load('catalog_category_product');
         $indexer->reindexList($this->updatedCategories);
         foreach($this->updatedCategories as $categoryId) {
