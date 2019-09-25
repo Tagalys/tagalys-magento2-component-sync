@@ -154,7 +154,10 @@ class Edit extends \Magento\Backend\App\Action
                     if ($params['enable_listingpages'] == '1' && $params['understand_and_agree'] == 'I agree') {
                         $this->tagalysConfiguration->setConfig('module:listingpages:enabled', $params['enable_listingpages']);
                         $this->messageManager->addNoticeMessage("Settings have been saved. Selected categories will be visible in your Tagalys Dashboard within 10 minutes and product positions on these categories will be updated within 15 minutes unless specificed below.");
-                        // $this->tagalysConfiguration->setConfig('listing_pages:rendering_method', $params['category_pages_rendering_method']);
+                        if (!array_key_exists('category_pages_rendering_method', $params)){
+                            $params['category_pages_rendering_method'] = 'platform';
+                        }
+                        $this->tagalysConfiguration->setConfig('listing_pages:rendering_method', $params['category_pages_rendering_method']);
                         $this->tagalysConfiguration->setConfig('listing_pages:reindex_and_clear_cache_immediately', $params['reindex_and_clear_cache_immediately']);
                         $this->tagalysConfiguration->setConfig('listing_pages:position_sort_direction', $params['position_sort_direction']);
                         $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);
@@ -177,7 +180,7 @@ class Edit extends \Magento\Backend\App\Action
                                 if($params["smart_page_parent_category_name_store_$storeId"] == ""){
                                     $params["smart_page_parent_category_name_store_$storeId"] = 'Tagalys';
                                 }
-                                if($params["smart_page_parent_category_url_key_store_$storeId"] == ""){
+                                if(array_key_exists("smart_page_parent_category_url_key_store_$storeId", $params) && $params["smart_page_parent_category_url_key_store_$storeId"] == ""){
                                     $params["smart_page_parent_category_url_key_store_$storeId"] = 'buy';
                                 }
                                 try{
@@ -329,16 +332,15 @@ class Edit extends \Magento\Backend\App\Action
     private function updateSmartPageParentCategory($storeId, $params) {
         $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
         $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
-        $categoryDetails = [
-            'name' => $params["smart_page_parent_category_name_store_$storeId"],
-            'url_key' => strtolower($params["smart_page_parent_category_url_key_store_$storeId"]),
-        ];
+        $categoryDetails = [];
+        $categoryDetails['name'] = $params["smart_page_parent_category_name_store_$storeId"];
         if($categoryId) {
             $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, $categoryDetails);
         } else {
+            $categoryDetails['url_key'] = strtolower($params["smart_page_parent_category_url_key_store_$storeId"]);
             $this->tagalysCategoryHelper->createTagalysParentCategory($storeId, $categoryDetails);
         }
-        $urlKey = $params["smart_page_parent_category_url_key_store_$storeId"];
+        $urlKey = $this->categoryFactory->create()->load($categoryId)->getUrlKey();
         $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
         $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);
     }

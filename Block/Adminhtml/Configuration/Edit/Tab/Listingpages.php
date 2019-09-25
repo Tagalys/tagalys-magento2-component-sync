@@ -102,16 +102,21 @@ class Listingpages extends Generic
             ['legend' => __('Technical Considerations'), 'collapsable' => true]
         );
 
-        $technicalConsiderationsFieldset->addField('category_pages_rendering_method', 'select', array(
-            'name' => 'category_pages_rendering_method',
-            'options' => array(
-                'platform' => __('Magento'),
-                'tagalys_js' => __('JavaScript (not recommended)')
-            ),
-            'required' => true,
-            'style' => 'width:100%;display:none;',
-            'value' => $this->tagalysConfiguration->getConfig("listing_pages:rendering_method")
-        ));
+        $renderingMethod = $this->tagalysConfiguration->getConfig("listing_pages:rendering_method");
+        if($renderingMethod == 'tagalys_js'){
+            $technicalConsiderationsFieldset->addField('category_pages_rendering_method', 'select', array(
+                'name' => 'category_pages_rendering_method',
+                'label' => 'Render category pages UI using',
+                'title' => 'Render category pages UI using',
+                'options' => array(
+                    'platform' => __('Magento'),
+                    'tagalys_js' => __('JavaScript (Not recommended)')
+                ),
+                'required' => true,
+                'style' => 'width:100%',
+                'value' => $renderingMethod
+            ));
+        }
 
         //Magento Render mode
         $multiStoreWarningRequired = $this->tagalysCategory->isMultiStoreWarningRequired();
@@ -242,7 +247,11 @@ class Listingpages extends Generic
             $storeDisplayLabel = $website->getName() . ' / '. $group->getName() . ' / ' . $store->getName();
             $smartPageParentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
             $smartPageParentCategory = $this->categoryFactory->create()->load($smartPageParentCategoryId);
-            
+            if($smartPageParentCategory->getId()){
+                $smartPageEnabled = true;
+            } else {
+                $smartPageEnabled = false;
+            }
             $storeListingPagesFieldset = $form->addFieldset(
                 'store_'.$storeId.'_listing_pages',
                 ['legend' => 'Categories for store: '.$storeDisplayLabel, 'collapsable' => true]
@@ -270,6 +279,7 @@ class Listingpages extends Generic
                 'label' => "Smart-Page parent category url_key",
                 'value'  => $smartPageParentCategory->getUrlKey(),
                 'placeholder' => 'buy (default)',
+                'disabled' => $smartPageEnabled
             ));
             $storeListingPagesFieldset->addField("categories_for_tagalys_store_$storeId", 'multiselect', array(
                 'name' => "categories_for_tagalys_store_$storeId",
