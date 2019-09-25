@@ -477,6 +477,7 @@
                 tgls_jq('#understand_and_agree').val('');
             }
             var renderingMethod = tgls_jq('#category_pages_rendering_method').val();
+            renderingMethod = renderingMethod ? renderingMethod : 'platform';
             tgls_jq('.visible-for-rendering-method').parents('.admin__field').hide();
             tgls_jq('.visible-for-rendering-method-' + renderingMethod).parents('.admin__field').show();
             if (renderingMethod == 'platform') {
