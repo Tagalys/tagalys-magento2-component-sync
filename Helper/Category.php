@@ -896,10 +896,11 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $tagalysCreated = $this->getTagalysParentCategory();
         $tagalysLegacyCategories = $this->tagalysConfiguration->getConfig('legacy_mpage_categories', true);
         $tagalysCreated = array_merge($tagalysCreated, $tagalysLegacyCategories);
-        $categories = $this->categoryCollection->setStoreId(0)->addAttributeToSelect('entity_id')
-                        ->addAttributeToFilter('parent_id', ['in' => $tagalysCreated]);
+        $categories = $this->categoryCollectionFactory->create()->addAttributeToSelect('entity_id');
         foreach($categories as $category){
-            $tagalysCreated[] = $category->getId();
+            if(in_array($category->getParentId(), $tagalysCreated)){
+                $tagalysCreated[] = $category->getId();
+            }
         }
         return $tagalysCreated;
     }
