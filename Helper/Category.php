@@ -697,6 +697,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             $this->_updatePositionsReverse($categoryId, $positions);
         }
         $this->reindexUpdatedCategories($categoryId);
+        return true;
     }
     
     public function createTagalysParentCategory($storeId, $categoryDetails) {
@@ -711,8 +712,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
 
     public function createCategory($storeId, $categoryDetails) {
         $parentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
+        $parentCategoryId = $this->categoryFactory->create()->load($parentCategoryId)->getId();
         if ($parentCategoryId == null) {
-            throw new \Exception('Please enable "Smart Pages" within Tagalys > Configuration > Listing Pages section in your Magento admin panel to use this feature');
+            throw new \Exception("Tagalys parent category not created. Please enable Smart Pages in Tagalys Configuration.");
         }
         $categoryDetails['is_active'] = true;
         $categoryDetails['include_in_menu'] = false;
@@ -732,6 +734,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $category->setStoreId(0)->addData($categoryDetails);
         $category->save();
         $this->categoryUpdateAfter($category);
+        return true;
     }
 
     public function categoryUpdateAfter($category){
@@ -752,6 +755,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         if($allowDelete){
             $this->_registry->register("isSecureArea", true);
             $category->delete();
+            return true;
         }
         throw new \Exception("This category cannot be deleted because it wasn't created by Tagalys");
     }
@@ -769,8 +773,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             'include_in_menu' => 0,
             'is_anchor' => 1
         ]);
+        $category->setStoreId(0);
         $category->save();
         $categoryId = $this->categoryCollectionFactory->create()
+            ->addAttributeToFilter('parent_id', $parentId)
             ->addAttributeToFilter('url_key', $categoryDetails['url_key'])
             ->addAttributeToSelect('entity_id')
             ->getFirstItem()
@@ -784,7 +790,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
           $this->bulkAssignProductsToCategoryViaDb($categoryId, $productPositions);
           $this->_paginateSqlRemove($categoryId, $productsToRemove);
           $this->reindexUpdatedCategories();
+          return true;
         }
+        throw new \Exception("Error: this category wasn't created by Tagalys");
     }
 
     private function getProductsNotIn($categoryId, $productPositions){

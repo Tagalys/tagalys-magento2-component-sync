@@ -17,7 +17,7 @@ class Queue extends \Magento\Framework\App\Helper\AbstractHelper
         $this->configurableProduct = $configurableProduct;
         $this->productFactory = $productFactory;
 
-        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
+        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_core.log');
         $this->tagalysLogger = new \Zend\Log\Logger();
         $this->tagalysLogger->addWriter($writer);
     }

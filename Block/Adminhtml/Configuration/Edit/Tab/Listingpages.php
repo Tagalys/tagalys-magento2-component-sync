@@ -258,25 +258,26 @@ class Listingpages extends Generic
             );
             $storeListingPagesFieldset->addField("enable_smart_page_store_$storeId", 'select', array(
                 'name' => "enable_smart_page_store_$storeId",
-                'label' => "Enable Smart-Pages",
+                'label' => "Enable Smart Categories",
                 'options' => array(
                     '1' => __('Yes'),
                     '0' => __('No')
                 ),
-                'after_element_html' => '<p><small style="font-weight: bold">Enable to instantly create dynamic pages from Tagalys Dashboard</small></p>',
+                'after_element_html' => '<p><small style="font-weight: bold">This will allow you to create new categories from the Tagalys Dashboard whose products are dynamically managed by Tagalys based on various conditions.</small></p>',
                 'data-store-id' => 3,
                 'style' => 'width:100%',
                 'value'  => $this->tagalysConfiguration->getConfig("enable_smart_page_store_$storeId"),
             ));
             $storeListingPagesFieldset->addField("smart_page_parent_category_name_store_$storeId", 'text', array(
                 'name' => "smart_page_parent_category_name_store_$storeId",
-                'label' => "Smart-Page parent category name",
+                'label' => "Smart Categories parent category name",
                 'value'  => $smartPageParentCategory->getName(),
                 'placeholder' => 'Tagalys (default)',
+                'after_element_html' => '<p><small style="font-weight: bold">For your reference, not shown in the front-end.</small></p>',
             ));
             $storeListingPagesFieldset->addField("smart_page_parent_category_url_key_store_$storeId", 'text', array(
                 'name' => "smart_page_parent_category_url_key_store_$storeId",
-                'label' => "Smart-Page parent category url_key",
+                'label' => "Smart Categories parent category url_key",
                 'value'  => $smartPageParentCategory->getUrlKey(),
                 'placeholder' => 'buy (default)',
                 'disabled' => $smartPageEnabled

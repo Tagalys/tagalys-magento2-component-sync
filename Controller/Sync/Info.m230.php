@@ -202,7 +202,7 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                         try{
                             $this->logger->info("create_category: params: ".json_encode($params));
                             $categoryId = $this->tagalysCategoryHelper->createCategory($params['store_id'], $params['category_details']);
-                            $response = ['status'=> 'OK', 'category_id'=> $categoryId, 'message' => ''];
+                            $response = ['status'=> 'OK', 'category_id'=> $categoryId];
                         } catch(\Exception $e){
                             $response = ['status'=> 'error', 'message' => $e->getMessage()];
                         }
@@ -210,8 +210,12 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                     case 'update_category':
                         try{
                             $this->logger->info("update_category: params: ".json_encode($params));
-                            $this->tagalysCategoryHelper->updateCategoryDetails($params['category_id'], $params['category_details']);
-                            $response = ['status'=>'OK'];
+                            $res = $this->tagalysCategoryHelper->updateCategoryDetails($params['category_id'], $params['category_details']);
+                            if($res) {
+                                $response = ['status'=>'OK', 'message'=>$res];
+                            } else {
+                                $response = ['status'=>'error', 'message'=>'Unknown error occurred'];
+                            }
                         } catch(\Exception $e){
                             $response = ['status'=> 'error', 'message' => $e->getMessage()];
                         }
@@ -219,8 +223,12 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                     case 'delete_tagalys_category':
                         try{
                             $this->logger->info("delete_tagalys_category: params: ".json_encode($params));
-                            $this->tagalysCategoryHelper->deleteTagalysCategory($params['category_id']);
-                            $response = ['status'=>'OK'];
+                            $res = $this->tagalysCategoryHelper->deleteTagalysCategory($params['category_id']);
+                            if($res) {
+                                $response = ['status'=>'OK', 'message'=>$res];
+                            } else {
+                                $response = ['status'=>'error', 'message'=>'Unknown error occurred'];
+                            }
                         } catch(\Exception $e){
                             $response = ['status'=> 'error', 'message' => $e->getMessage()];
                         }
@@ -231,8 +239,12 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                             if($params['product_positions'] == -1){
                                 $params['product_positions'] = [];
                             }
-                            $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['category_id'], $params['product_positions']);
-                            $response = ['status' => 'OK'];
+                            $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['category_id'], $params['product_positions']);
+                            if($res) {
+                                $response = ['status'=>'OK', 'message'=>$res];
+                            } else {
+                                $response = ['status'=>'error', 'message'=>'Unknown error occurred'];
+                            }
                         } catch(\Exception $e){
                             $response = ['status'=> 'error', 'message' => $e->getMessage()];
                         }
@@ -243,8 +255,12 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                             if($params['product_positions'] == -1){
                                 $params['product_positions'] = [];
                             }
-                            $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['category_id'], $params['product_positions']);
-                            $response = ['status' => 'OK'];
+                            $res = $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['category_id'], $params['product_positions']);
+                            if($res) {
+                                $response = ['status'=>'OK', 'message'=>$res];
+                            } else {
+                                $response = ['status'=>'error', 'message'=>'Unknown error occurred'];
+                            }
                         } catch(\Exception $e){
                             $response = ['status'=> 'error', 'message' => $e->getMessage()];
                         }

@@ -51,7 +51,7 @@ class Edit extends \Magento\Backend\App\Action
         $this->indexerFactory = $indexerFactory;
         $this->categoryFactory = $categoryFactory;
         $this->scopeConfig = $scopeConfig;
-        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
+        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_core.log');
         $this->logger = new \Zend\Log\Logger();
         $this->logger->addWriter($writer);
     }
@@ -163,8 +163,6 @@ class Edit extends \Magento\Backend\App\Action
                         $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);
                         
                         foreach($params['stores_for_tagalys'] as $storeId) {
-                            $originalStoreId = $this->storeManager->getStore()->getId();
-                            $this->storeManager->setCurrentStore($storeId);
                             $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
                             $this->tagalysApi->storeApiCall($storeId . '', '/v1/stores/update_platform_details', array(
                                 'platform_details' => array(
@@ -184,11 +182,13 @@ class Edit extends \Magento\Backend\App\Action
                                     $params["smart_page_parent_category_url_key_store_$storeId"] = 'buy';
                                 }
                                 try{
-                                    $this->updateSmartPageParentCategory($storeId, $params);
+                                    $this->saveSmartPageParentCategory($storeId, $params);
                                 } catch(\Exception $e) {
                                     $this->messageManager->addErrorMessage($e->getMessage());
                                 }
                             }
+                            $originalStoreId = $this->storeManager->getStore()->getId();
+                            $this->storeManager->setCurrentStore($storeId);
                             $categoryIds = array();
                             if (count($params['categories_for_tagalys_store_'. $storeId]) > 0) {
                                 foreach($params['categories_for_tagalys_store_' . $storeId] as $categoryPath) {
@@ -231,7 +231,6 @@ class Edit extends \Magento\Backend\App\Action
                                     $this->tagalysCategoryHelper->markStoreCategoryIdsForDeletionExcept($storeId, array());
                                     continue;
                                 }
-
                                 $this->storeManager->setCurrentStore($originalStoreId);
                             }
                         } else {
@@ -329,7 +328,7 @@ class Edit extends \Magento\Backend\App\Action
         return true;
     }
     
-    private function updateSmartPageParentCategory($storeId, $params) {
+    private function saveSmartPageParentCategory($storeId, $params) {
         $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
         $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
         $categoryDetails = [];

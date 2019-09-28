@@ -14,7 +14,7 @@ class Api extends \Magento\Framework\App\Helper\AbstractHelper
         $this->moduleListInterface = $moduleListInterface;
         $this->configFactory = $configFactory;
 
-        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys.log');
+        $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_log.log');
         $this->tagalysLogger = new \Zend\Log\Logger();
         $this->tagalysLogger->addWriter($writer);
 
