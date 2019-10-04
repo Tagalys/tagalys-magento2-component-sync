@@ -54,6 +54,7 @@ class Edit extends \Magento\Backend\App\Action
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_core.log');
         $this->logger = new \Zend\Log\Logger();
         $this->logger->addWriter($writer);
+        $this->platformDetailsToSend = [];
     }
 
     /**
@@ -164,12 +165,8 @@ class Edit extends \Magento\Backend\App\Action
                         
                         foreach($params['stores_for_tagalys'] as $storeId) {
                             $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
-                            $this->tagalysApi->storeApiCall($storeId . '', '/v1/stores/update_platform_details', array(
-                                'platform_details' => array(
-                                    'platform_pages_rendering_method' => $params['category_pages_rendering_method'],
-                                    'magento_category_products_indexer_mode' => ($categoryProductIndexer->isScheduled() ? 'update_by_schedule' : 'update_on_save')
-                                )
-                            ));
+                            $this->platformDetailsToSend['platform_pages_rendering_method'] = $params['category_pages_rendering_method'];
+                            $this->platformDetailsToSend['magento_category_products_indexer_mode'] = ($categoryProductIndexer->isScheduled() ? 'update_by_schedule' : 'update_on_save');
                             if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {
                                 $params[ 'categories_for_tagalys_store_' . $storeId] = array();
                             }
@@ -187,6 +184,7 @@ class Edit extends \Magento\Backend\App\Action
                                     $this->messageManager->addErrorMessage($e->getMessage());
                                 }
                             }
+                            $this->tagalysApi->storeApiCall($storeId . '', '/v1/stores/update_platform_details', ['platform_details' => $this->platformDetailsToSend]);
                             $originalStoreId = $this->storeManager->getStore()->getId();
                             $this->storeManager->setCurrentStore($storeId);
                             $categoryIds = array();
@@ -329,6 +327,7 @@ class Edit extends \Magento\Backend\App\Action
     }
     
     private function saveSmartPageParentCategory($storeId, $params) {
+        $this->tagalysSync->createCatalogIntegration();
         $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
         $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
         $categoryDetails = [];
@@ -337,8 +336,10 @@ class Edit extends \Magento\Backend\App\Action
             $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, $categoryDetails);
         } else {
             $categoryDetails['url_key'] = strtolower($params["smart_page_parent_category_url_key_store_$storeId"]);
-            $this->tagalysCategoryHelper->createTagalysParentCategory($storeId, $categoryDetails);
+            $categoryId = $this->tagalysCategoryHelper->createTagalysParentCategory($storeId, $categoryDetails);
         }
+        $this->platformDetailsToSend['parent_category_id'] = $categoryId;
+        $this->platformDetailsToSend['access_token'] = $this->tagalysConfiguration->getConfig('access_token');
         $urlKey = $this->categoryFactory->create()->load($categoryId)->getUrlKey();
         $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
         $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);

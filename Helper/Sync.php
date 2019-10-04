@@ -16,7 +16,11 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Framework\Url $frontUrlHelper,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Tagalys\Sync\Model\QueueFactory $queueFactory,
-        \Tagalys\Sync\Helper\Queue $queueHelper
+        \Tagalys\Sync\Helper\Queue $queueHelper,
+        \Magento\Integration\Model\IntegrationFactory $integrationFactory,
+        \Magento\Integration\Model\Oauth\Token $oauthToken,
+        \Magento\Integration\Model\AuthorizationService $authorizationService,
+        \Magento\Integration\Model\OauthService $oauthService
     )
     {
         $this->tagalysConfiguration = $tagalysConfiguration;
@@ -30,6 +34,10 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         $this->frontUrlHelper = $frontUrlHelper;
         $this->queueFactory = $queueFactory;
         $this->queueHelper = $queueHelper;
+        $this->integrationFactory = $integrationFactory;
+        $this->oauthToken = $oauthToken;
+        $this->authorizationService = $authorizationService;
+        $this->oauthService = $oauthService;
 
         $this->filesystem = $filesystem;
         $this->directory = $filesystem->getDirectoryWrite(\Magento\Framework\App\Filesystem\DirectoryList::MEDIA);
@@ -714,5 +722,38 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         }
 
         return $syncStatus;
+    }
+
+    public function createCatalogIntegration(){
+        $integrationData = array(
+            'name' => 'Tagalys Smart Categories',
+            'email' => 'support@tagalys.com',
+            'status' => '1',
+            'endpoint' => '',
+            'setup_type' => '0'
+        );
+        $integration = $this->integrationFactory->create()->load($integrationData['name'], 'name')->getData();
+        if(empty($integration)){
+            // Code to create Integration
+            $integration = $this->integrationFactory->create();
+            $integration->setData($integrationData);
+            $integration->save();
+            $integrationId = $integration->getId();
+            $consumerName = 'Integration' . $integrationId;
+            // Code to create consumer
+            $consumer = $this->oauthService->createConsumer(['name' => $consumerName]);
+            $consumerId = $consumer->getId();
+            $integration->setConsumerId($consumer->getId());
+            $integration->save();
+            // Code to grant permission
+            $this->authorizationService->grantPermissions($integrationId, ['Magento_Catalog::catalog', 'Magento_Catalog::catalog_inventory', 'Magento_Catalog::products', 'Magento_Catalog::edit_product_design', 'Magento_Catalog::categories', 'Magento_Catalog::edit_category_design']);
+            // Code to Activate and Authorize
+            $this->oauthToken->createVerifierToken($consumerId);
+            $this->oauthToken->setType('access');
+            $this->oauthToken->save();
+            $accessToken = $this->oauthToken->getToken();
+            $this->tagalysConfiguration->setConfig('access_token', $accessToken);
+            return $accessToken;
+        }
     }
 }
