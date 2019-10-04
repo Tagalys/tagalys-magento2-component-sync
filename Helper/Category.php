@@ -706,15 +706,16 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $categoryId = $this->_createCategory($rootCategoryId, $categoryDetails);
         if($categoryId){
             $this->tagalysConfiguration->setConfig("tagalys_parent_category_store_$storeId", $categoryId);
+            return $categoryId;
         }
-        return $categoryId;
+        return false;
     }
 
     public function createCategory($storeId, $categoryDetails) {
         $parentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
         $parentCategoryId = $this->categoryFactory->create()->load($parentCategoryId)->getId();
         if ($parentCategoryId == null) {
-            throw new \Exception("Tagalys parent category not created. Please enable Smart Pages in Tagalys Configuration.");
+            throw new \Exception("Tagalys parent category not created. Please enable Smart Categories in Tagalys Configuration.");
         }
         $categoryDetails['is_active'] = true;
         $categoryDetails['include_in_menu'] = false;
@@ -908,6 +909,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function getTagalysParentCategory($storeId=null){
         if (isset($storeId)){
             $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
+            $categoryId = $this->categoryFactory->create()->load($categoryId);
         } else {
             $categoryId = [];
             $websiteStores = $this->tagalysConfiguration->getAllWebsiteStores();

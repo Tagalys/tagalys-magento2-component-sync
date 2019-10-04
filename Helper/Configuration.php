@@ -242,8 +242,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             if($category_id_path[0] == 1){
                 array_splice($category_id_path, 0, 1);
             }
-            $parentId = $category_id_path[count($category_id_path) - 2];
-            if(in_array($parentId, $tagalysCreatedCategories)){
+            if(in_array(end($category_id_path), $tagalysCreatedCategories)){
                 continue;
             } else {
                 foreach($selected_categories as $selected_category_path){
