@@ -5,16 +5,19 @@ class UpdateCategory implements \Magento\Framework\Event\ObserverInterface
 {
     public function __construct(
         \Tagalys\Sync\Helper\Queue $queueHelper,
-        \Tagalys\Sync\Helper\Category $tagalysCategory
+        \Tagalys\Sync\Helper\Category $tagalysCategory,
+        \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory
     )
     {
         $this->queueHelper = $queueHelper;
         $this->tagalysCategory = $tagalysCategory;
+        $this->tagalysCategoryFactory = $tagalysCategoryFactory;
     }
     public function execute(\Magento\Framework\Event\Observer $observer)
     {
         try {
             $category = $observer->getEvent()->getCategory();
+            $this->markPendingSync($category->getId());
             $products = $category->getPostedProducts();
             if (!is_array($products)) {
                 $products = array($products);
@@ -38,5 +41,14 @@ class UpdateCategory implements \Magento\Framework\Event\ObserverInterface
                 $this->tagalysCategory->categoryUpdateAfter($category);
             }
         } catch (\Exception $e) { }
+    }
+
+    private function markPendingSync($categoryId){
+        $categories = $this->tagalysCategoryFactory->create()->getCollection()->addFieldToFilter('category_id', $categoryId);
+        foreach($categories as $category) {
+            if($category->getStatus()== 'powered_by_tagalys'){
+                $category->setStatus('pending_sync')->save();
+            }
+        }
     }
 }
