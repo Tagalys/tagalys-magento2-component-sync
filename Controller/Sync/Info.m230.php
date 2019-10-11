@@ -281,6 +281,19 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                             $response = ['status' => 'error', 'message' => $e->getMessage()];
                         }
                         break;
+                    case 'set_default_sort_by':
+                        try {
+                            $this->logger->info("set_default_sort_by: params: " . json_encode($params));
+                            $res = $this->tagalysCategoryHelper->setDefaultSortBy($params['category_id']);
+                            if ($res) {
+                                $response = ['status' => 'OK', 'message' => $res];
+                            } else {
+                                $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
+                            }
+                        } catch (\Exception $e) {
+                            $response = ['status' => 'error', 'message' => $e->getMessage()];
+                        }
+                        break;
                 }
             } else {
                 $this->tagalysApi->log('warn', 'Invalid identification in InfoAction', array('params' => $params));

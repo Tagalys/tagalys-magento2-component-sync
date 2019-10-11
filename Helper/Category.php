@@ -785,6 +785,42 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return $categoryId;
     }
 
+    public function setDefaultSortBy($categoryId)
+    {
+        $this->logger->info("setDefaultSortBy: category_id: $categoryId");
+        $category = $this->categoryFactory->create()->load($categoryId);
+        if ($category->getId() == null) {
+            throw new \Exception("Platform category not found");
+        }
+        if (!$this->isTagalysCreated($category)) {
+            throw new \Exception("This category was not created by Tagalys");
+        }
+        $entityTypeTable = $this->resourceConnection->getTableName('eav_entity_type');
+        $eavAttribute = $this->resourceConnection->getTableName('eav_attribute');
+        $cev = $this->resourceConnection->getTableName('catalog_category_entity_varchar');
+        $conn = $this->resourceConnection->getConnection();
+        $select = $conn->fetchAll("SELECT entity_type_id FROM $entityTypeTable WHERE entity_type_code='catalog_category';");
+        $entityTypeId = $select[0]['entity_type_id'];
+        $select = $conn->fetchAll("SELECT attribute_code, attribute_id FROM $eavAttribute WHERE entity_type_id=$entityTypeId AND attribute_code IN ('default_sort_by');");
+        $defaultSortByAttribute = $select[0]['attribute_id'];
+        $updateData = ['value' => 'position'];
+        $where = ['entity_id = ?' => $categoryId, 'attribute_id = ?' => $defaultSortByAttribute];
+        $conn->update($cev, $updateData, $where);
+
+        $stores = $this->storeManagerInterface->getStores();
+        foreach ($stores as $storeId => $store) {
+            try{
+                $flatTable = $this->resourceConnection->getTableName("catalog_category_flat_store_$storeId");
+                $updateData = ['default_sort_by' => 'position'];
+                $where = ['entity_id = ?' => $categoryId];
+                $conn->update($flatTable, $updateData, $where);
+            } catch(\Exception $e){
+                // Ignoring base table not found exception
+            }
+        }
+        return true;
+    }
+
     public function bulkAssignProductsToCategoryAndRemove($categoryId, $productPositions) {
         if($this->isTagalysCreated($categoryId)){
           $productsToRemove = $this->getProductsNotIn($categoryId, $productPositions);
