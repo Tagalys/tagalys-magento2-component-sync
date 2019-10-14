@@ -19,8 +19,8 @@ class UpdateCategory implements \Magento\Framework\Event\ObserverInterface
             $category = $observer->getEvent()->getCategory();
             $this->markPendingSync($category->getId());
             $products = $category->getPostedProducts();
-            if (!is_array($products)) {
-                $products = array($products);
+            if($this->tagalysCategory->isTagalysCreated($category) || $products == null){
+                return true;
             }
             $oldProducts = $category->getProductsPosition();
             $insert = array_diff_key($products, $oldProducts);
