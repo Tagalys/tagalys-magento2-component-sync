@@ -792,9 +792,6 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         if ($category->getId() == null) {
             throw new \Exception("Platform category not found");
         }
-        if (!$this->isTagalysCreated($category)) {
-            throw new \Exception("This category was not created by Tagalys");
-        }
         $entityTypeTable = $this->resourceConnection->getTableName('eav_entity_type');
         $eavAttribute = $this->resourceConnection->getTableName('eav_attribute');
         $cev = $this->resourceConnection->getTableName('catalog_category_entity_varchar');
