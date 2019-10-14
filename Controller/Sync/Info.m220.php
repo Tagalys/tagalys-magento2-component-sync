@@ -260,7 +260,9 @@ class Info extends \Magento\Framework\App\Action\Action
                         break;
                     case 'get_tagalys_logs':
                         try{
-                            $this->logger->info('test log');
+                            if (empty($params['lines'])) {
+                                $params['lines'] = 10;
+                            }
                             ob_start();
                             passthru('tail -n'. escapeshellarg($params['lines']).' var/log/tagalys_'.escapeshellarg($params['file']).'.log');
                             $response = ['status' => 'OK', 'message' => explode("\n",trim(ob_get_clean()))];
