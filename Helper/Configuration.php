@@ -394,7 +394,6 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $productsCount = $this->productFactory->create()->getCollection()->setStoreId($storeId)->addStoreFilter($storeId)->addAttributeToFilter('status', 1)->addAttributeToFilter('visibility', array("neq" => 1))->count();
         $storeUrl = $this->storeManager->getStore($storeId)->getUrl();
         $storeDomain = parse_url($storeUrl)['host'];
-        $pluginVersion = '1.7.0';
         $configuration = array(
             'id' => $storeId,
             'label' => $store->getName(),
