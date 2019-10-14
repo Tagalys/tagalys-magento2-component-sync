@@ -640,7 +640,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 foreach ($storesForTagalys as $storeId) {
                     $category = $this->categoryFactory->create()->setStoreId($storeId)->load($categoryId);
                     if ($category->getDefaultSortBy() != 'position') {
-                    $category->setDefaultSortBy('position')->save();
+                        $this->setDefaultSortBy($categoryId);
                     }
                 }
                 }
