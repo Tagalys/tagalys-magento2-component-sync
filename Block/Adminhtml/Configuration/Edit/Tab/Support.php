@@ -104,6 +104,9 @@ class Support extends Generic
             $info['config'][$i->getData('path')] = $i->getData('value');
         }
         $mediaDirectory = $this->filesystem->getDirectoryRead('media')->getAbsolutePath('tagalys');
+        if (!is_dir($mediaDirectory)) {
+            mkdir($mediaDirectory);
+        }
         $filesInMediaDirectory = scandir($mediaDirectory);
         foreach ($filesInMediaDirectory as $key => $value) {
             if (!is_dir($mediaDirectory . DIRECTORY_SEPARATOR . $value)) {
