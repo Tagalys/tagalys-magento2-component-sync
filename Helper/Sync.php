@@ -521,7 +521,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 
             $triggerDatetime = strtotime($syncFileStatus['triggered_at']);
             $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
-            $storeUrl = $this->storeManager->getStore($storeId)->getUrl();
+            $storeUrl = $this->storeManager->getStore($storeId)->getBaseUrl();
             $storeDomain = parse_url($storeUrl)['host'];
             $data = array(
                 'link' => $linkToFile,
