@@ -589,4 +589,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         }
         return compact('tag_sets', 'custom_fields');
     }
+
+    public function isSortedReverse(){
+        return $this->getConfig('listing_pages:position_sort_direction') != 'asc';
+    }
 }

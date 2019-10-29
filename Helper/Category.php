@@ -842,6 +842,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
 
     public function bulkAssignProductsToCategoryViaDb($categoryId, $productPositions) {
         if(count($productPositions)>0){
+            if($this->tagalysConfiguration->isSortedReverse()){
+                array_reverse($productPositions);
+            }
             $tableName = $this->resourceConnection->getTableName('catalog_category_product');
             $sql = "REPLACE $tableName (category_id, product_id, position) VALUES ";
             $this->paginateSqlInsert($sql, $categoryId, $productPositions);
