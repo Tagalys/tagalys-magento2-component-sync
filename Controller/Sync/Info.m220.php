@@ -283,6 +283,10 @@ class Info extends \Magento\Framework\App\Action\Action
                             $response = ['status' => 'error', 'message' => $e->getMessage()];
                         }
                         break;
+                    case 'update_category_pages_store_mapping':
+                        $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping']);
+                        $response = array('updated' => true, $params['store_mapping']);
+                        break;
                 }
             } else {
                 $this->tagalysApi->log('warn', 'Invalid identification in InfoAction', array('params' => $params));

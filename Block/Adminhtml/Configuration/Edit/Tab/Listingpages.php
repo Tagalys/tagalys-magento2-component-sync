@@ -241,6 +241,11 @@ class Listingpages extends Generic
         ));
 
         foreach ($this->tagalysConfiguration->getStoresForTagalys() as $key => $storeId) {
+            $storeMapping = $this->tagalysConfiguration->getConfig("category_pages_store_mapping", true);
+            $hidden = false;
+            if (array_key_exists($storeId . '', $storeMapping) && $storeMapping[$storeId . ''] != $storeId . '') {
+                $hidden = true;
+            }
             $store = $this->storeManagerInterface->getStore($storeId);
             $group = $store->getGroup();
             $website = $group->getWebsite();
@@ -286,7 +291,7 @@ class Listingpages extends Generic
                 'name' => "categories_for_tagalys_store_$storeId",
                 'onclick' => "return false;",
                 'onchange' => "return false;",
-                'class' => 'categories-for-tagalys-store',
+                'class' => 'categories-for-tagalys-store'. ($hidden ? ' force-hide-store-categories ' : ''),
                 'value'  => $this->tagalysConfiguration->getCategoriesForTagalys($storeId),
                 'values' => $this->tagalysConfiguration->getAllCategories($storeId),
                 'style' => "width:100%; height: 400px; display: none;",

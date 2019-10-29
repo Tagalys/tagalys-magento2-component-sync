@@ -418,6 +418,9 @@
         "jquery"
     ], function(tgls_jq) {
         var storesVisibilityTimer = false;
+        tgls_jq(function(){
+            tgls_jq('.force-hide-store-categories').parents('.fieldset-wrapper').children().hide();
+        })
         tgls_jq('#enable_listingpages').change(function() {
             checkTagalysEnabled();
         });

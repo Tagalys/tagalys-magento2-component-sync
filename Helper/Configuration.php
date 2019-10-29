@@ -99,7 +99,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'product_thumbnail_quality' => '80',
                 'category_pages_rendering_method' => 'magento',
                 'tagalys_plan_features' => '{}',
-                'legacy_mpage_categories' => '[]'
+                'legacy_mpage_categories' => '[]',
+                'category_pages_store_mapping' => '{}'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
