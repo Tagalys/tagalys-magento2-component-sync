@@ -297,7 +297,7 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                         }
                         break;
                     case 'update_category_pages_store_mapping':
-                        $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping']);
+                        $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping'], true);
                         $response = array('updated' => true, $params['store_mapping']);
                         break;
                 }
