@@ -304,6 +304,7 @@ class Edit extends \Magento\Backend\App\Action
                     $this->queueHelper->truncate();
                     $this->tagalysConfiguration->truncate();
                     $this->tagalysCategoryHelper->truncate();
+                    $this->tagalysSync->deleteIntegration();
                     $redirectToTab = 'api_credentials';
                     break;
             }
@@ -327,7 +328,6 @@ class Edit extends \Magento\Backend\App\Action
     }
     
     private function saveSmartPageParentCategory($storeId, $params) {
-        $this->tagalysSync->createCatalogIntegration();
         $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
         $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
         $categoryDetails = [];
@@ -341,7 +341,7 @@ class Edit extends \Magento\Backend\App\Action
         $category = $this->categoryFactory->create()->load($categoryId);
         $this->platformDetailsToSend['parent_category_id'] = $category->getId();
         $this->platformDetailsToSend['parent_category_name'] = $category->getName();
-        $this->platformDetailsToSend['access_token'] = $this->tagalysConfiguration->getConfig('access_token');
+        $this->platformDetailsToSend['access_token'] = $this->tagalysSync->getAccessToken();
         $urlKey = $category->getUrlKey();
         $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
         $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);

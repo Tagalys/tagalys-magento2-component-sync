@@ -724,16 +724,16 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         return $syncStatus;
     }
 
-    public function createCatalogIntegration(){
+    public function getAccessToken(){
         $integrationData = array(
-            'name' => 'Tagalys Smart Categories',
+            'name' => 'Tagalys',
             'email' => 'support@tagalys.com',
             'status' => '1',
             'endpoint' => '',
             'setup_type' => '0'
         );
-        $integration = $this->integrationFactory->create()->load($integrationData['name'], 'name')->getData();
-        if(empty($integration)){
+        $integration = $this->integrationFactory->create()->load($integrationData['name'], 'name');
+        if(empty($integration->getData())){
             // Code to create Integration
             $integration = $this->integrationFactory->create();
             $integration->setData($integrationData);
@@ -746,14 +746,29 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
             $integration->setConsumerId($consumer->getId());
             $integration->save();
             // Code to grant permission
-            $this->authorizationService->grantPermissions($integrationId, ['Magento_Catalog::catalog', 'Magento_Catalog::catalog_inventory', 'Magento_Catalog::products', 'Magento_Catalog::edit_product_design', 'Magento_Catalog::categories', 'Magento_Catalog::edit_category_design']);
+            $this->authorizationService->grantPermissions($integrationId, $this->tagalysConfiguration->getConfig('integration_permissions', true));
             // Code to Activate and Authorize
             $this->oauthToken->createVerifierToken($consumerId);
             $this->oauthToken->setType('access');
             $this->oauthToken->save();
             $accessToken = $this->oauthToken->getToken();
-            $this->tagalysConfiguration->setConfig('access_token', $accessToken);
+            return $accessToken;
+        } else {
+            $accessToken = $this->oauthToken->loadByConsumerIdAndUserType($integration->getConsumerId(), 1)->getToken();
             return $accessToken;
         }
+    }
+
+    public function deleteIntegration() {
+        $integration = $this->integrationFactory->create()->load('Tagalys', 'name');
+        $integration->delete();
+    }
+
+    public function updateIntegration($permissions) {
+        $this->tagalysConfiguration->setConfig('integration_permissions', $permissions);
+        $integration = $this->integrationFactory->create()->load('Tagalys', 'name');
+        $permissions = $this->tagalysConfiguration->getConfig('integration_permissions');
+        $this->authorizationService->grantPermissions($integration->getId(), $permissions);
+        return $permissions;
     }
 }
