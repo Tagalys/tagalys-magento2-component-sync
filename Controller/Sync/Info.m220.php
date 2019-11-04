@@ -271,8 +271,10 @@ class Info extends \Magento\Framework\App\Action\Action
                         }
                         break;
                     case 'set_default_sort_by':
+                        // called after category save using Magento API.
                         try {
                             $this->logger->info("set_default_sort_by: params: " . json_encode($params));
+                            $this->tagalysCategoryHelper->reindexFlatCategories();
                             $res = $this->tagalysCategoryHelper->setDefaultSortBy($params['category_id']);
                             if ($res) {
                                 $response = ['status' => 'OK', 'message' => $res];

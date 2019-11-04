@@ -993,4 +993,13 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return in_array($parentId, $legacyCategories);
     }
 
+    public function reindexFlatCategories() {
+        try{
+            $categoryFlatIndexer = $this->indexerFactory->create()->load('catalog_category_flat');
+            $categoryFlatIndexer->reindexAll();
+        } catch(\Exception $e) {
+            $this->logger->err("reindexFlatCategories: {$e->getMessage()}");
+        }
+    }
+
 }
