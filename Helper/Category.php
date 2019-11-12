@@ -800,13 +800,12 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $entityTypeId = $select[0]['entity_type_id'];
         $select = $conn->fetchAll("SELECT attribute_code, attribute_id FROM $eavAttribute WHERE entity_type_id=$entityTypeId AND attribute_code IN ('default_sort_by');");
         $defaultSortByAttribute = $select[0]['attribute_id'];
-        $updateData = ['value' => 'position'];
-        $where = ['entity_id = ?' => $categoryId, 'attribute_id = ?' => $defaultSortByAttribute];
-        $conn->update($cev, $updateData, $where);
 
         $stores = $this->storeManagerInterface->getStores();
         foreach ($stores as $storeId => $store) {
             try{
+                $sql = "REPLACE $cev (entity_id, attribute_id, store_id, value) VALUES ($categoryId, $defaultSortByAttribute, $storeId, 'position');";
+                $this->runSql($sql);
                 $flatTable = $this->resourceConnection->getTableName("catalog_category_flat_store_$storeId");
                 $updateData = ['default_sort_by' => 'position'];
                 $where = ['entity_id = ?' => $categoryId];
