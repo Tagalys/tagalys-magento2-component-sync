@@ -173,6 +173,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function getAllCategories($storeId) {
+        $output = [];
         $originalStoreId = $this->storeManager->getStore()->getId();
         $this->storeManager->setCurrentStore($storeId);
         $rootCategoryId = $this->storeManager->getStore($storeId)->getRootCategoryId();
@@ -357,6 +358,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function getAllWebsiteStores() {
+        $website_stores = [];
         foreach ($this->storeManager->getWebsites() as $website) {
             foreach ($website->getGroups() as $group) {
                 $stores = $group->getStores();
