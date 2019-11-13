@@ -328,7 +328,7 @@ class Edit extends \Magento\Backend\App\Action
     }
     
     private function saveSmartPageParentCategory($storeId, $params) {
-        $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
+        $categoryId = $this->tagalysCategoryHelper->getTagalysParentCategory($storeId);
         $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
         $categoryDetails = [];
         $categoryDetails['name'] = $params["smart_page_parent_category_name_store_$storeId"];

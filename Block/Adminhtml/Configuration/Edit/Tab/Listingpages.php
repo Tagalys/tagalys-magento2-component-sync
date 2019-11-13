@@ -250,7 +250,7 @@ class Listingpages extends Generic
             $group = $store->getGroup();
             $website = $group->getWebsite();
             $storeDisplayLabel = $website->getName() . ' / '. $group->getName() . ' / ' . $store->getName();
-            $smartPageParentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId", true);
+            $smartPageParentCategoryId = $this->tagalysCategoryHelper->getTagalysParentCategory($storeId);
             $smartPageParentCategory = $this->categoryFactory->create()->load($smartPageParentCategoryId);
             if($smartPageParentCategory->getId()){
                 $smartPageEnabled = true;

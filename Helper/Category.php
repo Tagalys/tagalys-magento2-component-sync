@@ -916,7 +916,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 return false;
             }
         }
-        $parentCategories = $this->getTagalysParentCategory();
+        $parentCategories = $this->getAllTagalysParentCategories();
         if(in_array($category->getId(), $parentCategories)){
             return true;
         }
@@ -929,7 +929,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     }
     
     public function getTagalysCreatedCategories() {
-        $tagalysCreated = $this->getTagalysParentCategory();
+        $tagalysCreated = $this->getAllTagalysParentCategories();
         $tagalysLegacyCategories = $this->tagalysConfiguration->getConfig('legacy_mpage_categories', true);
         $tagalysCreated = array_merge($tagalysCreated, $tagalysLegacyCategories);
         $categories = $this->categoryCollectionFactory->create()->addAttributeToSelect('entity_id');
@@ -941,22 +941,30 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return $tagalysCreated;
     }
 
-    public function getTagalysParentCategory($storeId=null){
-        if (isset($storeId)){
-            $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
-            $categoryId = $this->categoryFactory->create()->load($categoryId);
-        } else {
-            $categoryId = [];
-            $websiteStores = $this->tagalysConfiguration->getAllWebsiteStores();
-            foreach($websiteStores as $sid){
-                $sid = $sid['value'];
-                $catId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$sid");
-                if($catId != null){
-                    $categoryId[] = $catId;
-                }
+    public function getTagalysParentCategory($storeId){
+        $rootCategoryId = $this->storeManagerInterface->getStore($storeId);
+        $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_for_root_$rootCategoryId");
+        $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
+        return $categoryId;
+    }
+
+    public function getAllTagalysParentCategories(){
+        $categoryId = [];
+        $stores = $this->tagalysConfiguration->getStoresForTagalys();
+        foreach($stores as $sid){
+            $sid = $sid['value'];
+            $rootCategoryId = $this->storeManagerInterface->getStore($sid)->getRootCategoryId();
+            $catId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_for_root_$rootCategoryId");
+            if($catId != null){
+                $categoryId[] = $catId;
             }
         }
         return $categoryId;
+    }
+
+    public function setTagalysParentCategory($storeId, $categoryId) {
+        $rootCategoryId = $this->storeManagerInterface->getStore($storeId);
+        $categoryId = $this->tagalysConfiguration->setConfig("tagalys_parent_category_for_root_$rootCategoryId", $categoryId);
     }
 
     public function redirectToCategoryUrl($storeId, $categoryId, $path){
