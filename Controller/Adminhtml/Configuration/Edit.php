@@ -82,12 +82,12 @@ class Edit extends \Magento\Backend\App\Action
                             }
                             $redirectToTab = 'sync';
                         } else {
-                            $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your API credentials. Please email us at cs@tagalys.com so we can resolve this issue.");
+                            $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your API credentials. Please email us at support@tagalys.com so we can resolve this issue.");
                             $redirectToTab = 'api_credentials';
                         }
                     } catch (\Exception $e) {
                         $this->tagalysApi->log('error', 'Error in _saveApiCredentials', array('api_credentials' => $params['api_credentials']));
-                        $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your API credentials. Please email us at cs@tagalys.com so we can resolve this issue.");
+                        $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your API credentials. Please email us at support@tagalys.com so we can resolve this issue.");
                         $redirectToTab = 'api_credentials';
                     }
                     break;
@@ -120,7 +120,7 @@ class Edit extends \Magento\Backend\App\Action
                             $response = $this->tagalysConfiguration->syncClientConfiguration($params['stores_for_tagalys']);
                             if ($response === false || $response['result'] === false) {
                                 $this->tagalysApi->log('error', 'syncClientConfiguration returned false', array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                                $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your store's configuration. We've logged the issue and we'll get back once we know more. You can contact us here: cs@tagalys.com");
+                                $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your store's configuration. We've logged the issue and we'll get back once we know more. You can contact us here: support@tagalys.com");
                                 $redirectToTab = 'sync_settings';
                             } else {
                                 $this->tagalysApi->log('info', 'Completed configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
@@ -140,7 +140,7 @@ class Edit extends \Magento\Backend\App\Action
                         }
                     } catch (\Exception $e) {
                         $this->tagalysApi->log('error', 'Error in syncClientConfiguration: ' . $e->getMessage(), array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                        $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your configuration. Please email us at cs@tagalys.com so we can resolve this issue.");
+                        $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your configuration. Please email us at support@tagalys.com so we can resolve this issue.");
                         $redirectToTab = 'sync_settings';
                     }
                     break;
@@ -318,7 +318,7 @@ class Edit extends \Magento\Backend\App\Action
     {
         $result = $this->tagalysApi->identificationCheck(json_decode($params['api_credentials'], true));
         if ($result['result'] != 1) {
-            $this->messageManager->addErrorMessage("Invalid API Credentials. Please try again. If you continue having issues, please email us at cs@tagalys.com.");
+            $this->messageManager->addErrorMessage("Invalid API Credentials. Please try again. If you continue having issues, please email us at support@tagalys.com.");
             return false;
         }
         // save credentials

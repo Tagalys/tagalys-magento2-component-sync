@@ -99,7 +99,7 @@ class Search extends Generic
             'value'  => $this->tagalysConfiguration->getConfig("search_box_selector"),
             'required'  => true,
             'style'   => "width:100%",
-            'after_element_html' => '<small>Please consult with your tech team or <a href="mailto:cs@tagalys.com">contact us</a>. <br>This can be any jQuery selector.<br>Eg: #search / .search-field / [type="search"]</small>',
+            'after_element_html' => '<small>Please consult with your tech team or <a href="mailto:support@tagalys.com">contact us</a>. <br>This can be any jQuery selector.<br>Eg: #search / .search-field / [type="search"]</small>',
             'tabindex' => 1
         ));
 

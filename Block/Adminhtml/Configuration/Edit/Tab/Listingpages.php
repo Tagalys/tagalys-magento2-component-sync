@@ -201,7 +201,7 @@ class Listingpages extends Generic
                 <li>If you have some custom UI rules common to all Tagalys pages, then you could create a separate custom layout and override that instead of <em>1column</em></li>
                 <li>If you need control over each page, avoid overriding the layout and use Magento controls under Catalog&nbsp;>&nbsp;Category for each page to specify the layout and any updates you need</li>
                 <li>You may have to clear your Magento cache after updating these settings</li>
-                <li>Please contact cs@tagalys.com if you have any questions</li>
+                <li>Please contact support@tagalys.com if you have any questions</li>
             </ul>'
         ));
 
