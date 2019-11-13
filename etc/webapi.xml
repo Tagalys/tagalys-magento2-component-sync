@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Webapi:etc/webapi.xsd">
+    <route method="POST" url="/V1/tagalys/post">
+        <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="getPost"/>
+        <resources>
+            <resource ref="Tagalys_Sync::tagalys" />
+        </resources>
+    </route>
+    <route method="GET" url="/V1/tagalys/products">
+        <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="getProducts"/>
+        <resources>
+            <resource ref="Tagalys_Sync::tagalys" />
+        </resources>
+    </route>
+</routes>
