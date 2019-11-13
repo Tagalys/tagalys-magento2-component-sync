@@ -800,9 +800,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $entityTypeId = $select[0]['entity_type_id'];
         $select = $conn->fetchAll("SELECT attribute_code, attribute_id FROM $eavAttribute WHERE entity_type_id=$entityTypeId AND attribute_code IN ('default_sort_by');");
         $defaultSortByAttribute = $select[0]['attribute_id'];
+        $storeIds = $this->getStoresForCategory($categoryId);
 
-        $stores = $this->storeManagerInterface->getStores();
-        foreach ($stores as $storeId => $store) {
+        foreach ($storeIds as $storeId) {
             try{
                 $sql = "REPLACE $cev (entity_id, attribute_id, store_id, value) VALUES ($categoryId, $defaultSortByAttribute, $storeId, 'position');";
                 $this->runSql($sql);
@@ -999,6 +999,21 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         } catch(\Exception $e) {
             $this->logger->err("reindexFlatCategories: {$e->getMessage()}");
         }
+    }
+
+    public function getStoresForCategory($categoryId){
+        //NOTE: does not check if category is enabled/disabled status
+        $storeIds = [];
+        $stores = $this->storeManagerInterface->getStores();
+        $category = $this->categoryFactory->create()->load($categoryId);
+        foreach ($stores as $storeId => $store) {
+            $rootCategoryId = $store->getRootCategoryId();
+            $path = explode('/', $category->getPath());
+            if (in_array($rootCategoryId, $path)){
+                $storeIds[] = $storeId;
+            }
+        }
+        return $storeIds;
     }
 
 }
