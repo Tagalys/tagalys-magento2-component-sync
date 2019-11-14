@@ -952,7 +952,6 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $categoryId = [];
         $stores = $this->tagalysConfiguration->getStoresForTagalys();
         foreach($stores as $sid){
-            $sid = $sid['value'];
             $rootCategoryId = $this->storeManagerInterface->getStore($sid)->getRootCategoryId();
             $catId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_for_root_$rootCategoryId");
             if($catId != null){
