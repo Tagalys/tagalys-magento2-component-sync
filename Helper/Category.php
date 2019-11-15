@@ -705,23 +705,22 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $categoryDetails['is_active'] = false;
         $categoryId = $this->_createCategory($rootCategoryId, $categoryDetails);
         if($categoryId){
-            $this->tagalysConfiguration->setConfig("tagalys_parent_category_store_$storeId", $categoryId);
+            $this->setTagalysParentCategory($storeId, $categoryId);
             return $categoryId;
         }
         return false;
     }
 
-    public function createCategory($storeId, $categoryDetails) {
-        $parentCategoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_store_$storeId");
-        $parentCategoryId = $this->categoryFactory->create()->load($parentCategoryId)->getId();
+    public function createCategory($storeId, $categoryDetails, $enableForStores = []) {
+        $parentCategoryId = $this->getTagalysParentCategory($storeId);
         if ($parentCategoryId == null) {
             throw new \Exception("Tagalys parent category not created. Please enable Smart Categories in Tagalys Configuration.");
         }
-        $categoryDetails['is_active'] = true;
-        $categoryDetails['include_in_menu'] = false;
-        $categoryDetails['default_sort_by'] = 'position';
-        $categoryDetails['display_mode'] = \Magento\Catalog\Model\Category::DM_PRODUCT;
+        $categoryDetails['is_active'] = false;
         $categoryId = $this->_createCategory($parentCategoryId, $categoryDetails);
+        foreach ($enableForStores as $sid) {
+            $this->updateCategoryDetails($categoryId, ['store_id'=>$sid, 'is_active'=> true]);
+        }
         return $categoryId;
     }
 
@@ -732,7 +731,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             throw new \Exception("Platform category not found");
         }
         $categoryDetails['default_sort_by'] = 'position';
-        $category->setStoreId(0)->addData($categoryDetails);
+        $category->addData($categoryDetails);
         $category->save();
         $this->categoryUpdateAfter($category);
         return true;
@@ -776,13 +775,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         ]);
         $category->setStoreId(0);
         $category->save();
-        $categoryId = $this->categoryCollectionFactory->create()
-            ->addAttributeToFilter('parent_id', $parentId)
-            ->addAttributeToFilter('url_key', $categoryDetails['url_key'])
-            ->addAttributeToSelect('entity_id')
-            ->getFirstItem()
-            ->getId();
-        return $categoryId;
+        return $category->getId();
     }
 
     public function setDefaultSortBy($categoryId)
@@ -942,7 +935,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function getTagalysParentCategory($storeId){
-        $rootCategoryId = $this->storeManagerInterface->getStore($storeId);
+        $rootCategoryId = $this->storeManagerInterface->getStore($storeId)->getRootCategoryId();
         $categoryId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_for_root_$rootCategoryId");
         $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
         return $categoryId;
@@ -952,8 +945,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $categoryId = [];
         $stores = $this->tagalysConfiguration->getStoresForTagalys();
         foreach($stores as $sid){
-            $rootCategoryId = $this->storeManagerInterface->getStore($sid)->getRootCategoryId();
-            $catId = $this->tagalysConfiguration->getConfig("tagalys_parent_category_for_root_$rootCategoryId");
+            $catId = $this->getTagalysParentCategory($sid);
             if($catId != null){
                 $categoryId[] = $catId;
             }
@@ -962,6 +954,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function setTagalysParentCategory($storeId, $categoryId) {
+        // tagalys_parent_category_for_root_ was previously tagalys_parent_category_store_$storeId
+        // migrate the old clients
         $rootCategoryId = $this->storeManagerInterface->getStore($storeId);
         $categoryId = $this->tagalysConfiguration->setConfig("tagalys_parent_category_for_root_$rootCategoryId", $categoryId);
     }

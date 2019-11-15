@@ -596,4 +596,26 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
     public function isSortedReverse(){
         return $this->getConfig('listing_pages:position_sort_direction') != 'asc';
     }
+
+    public function isPrimaryStore($storeId){
+        $storeMapping = $this->getConfig("category_pages_store_mapping", true);
+        if (array_key_exists($storeId . '', $storeMapping) && $storeMapping[$storeId . ''] != $storeId . '') {
+            return false;
+        }
+        return true;
+    }
+
+    public function getMappedStores($storeId, $includeMe = false) {
+        $stores = [];
+        $storeMapping = $this->getConfig("category_pages_store_mapping", true);
+        foreach ($storeMapping as $child => $parent) {
+            if ($parent == $storeId){
+                $stores[] = $child;
+            }
+        }
+        if ($includeMe){
+            $stores[] = $storeId;
+        }
+        return $stores;
+    }
 }

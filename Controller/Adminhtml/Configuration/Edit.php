@@ -326,11 +326,12 @@ class Edit extends \Magento\Backend\App\Action
         $this->tagalysApi->cacheApiCredentials();
         return true;
     }
-    
+
     private function saveSmartPageParentCategory($storeId, $params) {
         $categoryId = $this->tagalysCategoryHelper->getTagalysParentCategory($storeId);
-        $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
-        $categoryDetails = [];
+        $categoryDetails = [
+            'store_id' => $storeId
+        ];
         $categoryDetails['name'] = $params["smart_page_parent_category_name_store_$storeId"];
         if($categoryId) {
             $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, $categoryDetails);
@@ -346,4 +347,14 @@ class Edit extends \Magento\Backend\App\Action
         $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
         $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);
     }
-  }
+
+    private function migration(){
+        // move this code to somewhere else
+        $latest = '1.17.6';
+        $pluginVersion = $this->tagalysConfiguration->getConfig('plugin_version');
+        if($pluginVersion != $latest){
+
+            $this->tagalysConfiguration->setConfig('plugin_version', $latest);
+        }
+    }
+}

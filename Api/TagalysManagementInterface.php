@@ -9,18 +9,16 @@ interface TagalysManagementInterface
 
     /**
      * POST for Post api
-     * @param string $param
+     * @param mixed $params
      * @return string
      */
+    // ALERT: Test this in 2.0 - 2.1
+    public function info($params);
 
-    public function getPost($params);
-    
     /**
      * POST for Post api
-     * @param int $page
-     * @param int $perPage
+     * @param mixed $category
      * @return string
      */
-
-    public function getProducts($page = 1, $perPage = 100);
+    public function categorySave($category);
 }

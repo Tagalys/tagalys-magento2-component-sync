@@ -37,9 +37,7 @@ class TagalysApi implements TagalysManagementInterface
         $this->logger->addWriter($writer);
     }
 
-    public function getPost($params)
-    {
-        $params = json_decode($params, true);
+    public function info($params) {
         return $this->execute($params);
     }
 
@@ -168,28 +166,6 @@ class TagalysApi implements TagalysManagementInterface
                 $this->tagalysConfiguration->setConfig('tagalys_plan_features', $params['plan_features'], true);
                 $response = array('updated' => true);
                 break;
-            case 'create_category':
-                try {
-                    $this->logger->info("create_category: params: " . json_encode($params));
-                    $categoryId = $this->tagalysCategoryHelper->createCategory($params['store_id'], $params['category_details']);
-                    $response = ['status' => 'OK', 'category_id' => $categoryId];
-                } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
-                }
-                break;
-            case 'update_category':
-                try {
-                    $this->logger->info("update_category: params: " . json_encode($params));
-                    $res = $this->tagalysCategoryHelper->updateCategoryDetails($params['category_id'], $params['category_details']);
-                    if ($res) {
-                        $response = ['status' => 'OK', 'message' => $res];
-                    } else {
-                        $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
-                    }
-                } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
-                }
-                break;
             case 'delete_tagalys_category':
                 try {
                     $this->logger->info("delete_tagalys_category: params: " . json_encode($params));
@@ -200,7 +176,7 @@ class TagalysApi implements TagalysManagementInterface
                         $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
                     }
                 } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
+                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
                 }
                 break;
             case 'assign_products_to_category_and_remove':
@@ -216,7 +192,7 @@ class TagalysApi implements TagalysManagementInterface
                         $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
                     }
                 } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
+                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
                 }
                 break;
             case 'update_product_positions':
@@ -232,7 +208,7 @@ class TagalysApi implements TagalysManagementInterface
                         $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
                     }
                 } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
+                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
                 }
                 break;
             case 'get_plugin_version':
@@ -250,7 +226,7 @@ class TagalysApi implements TagalysManagementInterface
                     passthru('tail -n' . escapeshellarg($params['lines']) . ' var/log/tagalys_' . escapeshellarg($params['file']) . '.log');
                     $response = ['status' => 'OK', 'message' => explode("\n", trim(ob_get_clean()))];
                 } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
+                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
                 }
                 break;
             case 'set_default_sort_by':
@@ -265,19 +241,37 @@ class TagalysApi implements TagalysManagementInterface
                         $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
                     }
                 } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage()];
+                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
                 }
                 break;
             case 'update_category_pages_store_mapping':
                 $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping'], true);
                 $response = array('updated' => true, $params['store_mapping']);
                 break;
+            case 'assign_patent_category':
+                $this->tagalysCategoryHelper->setTagalysParentCategory($params['store_id'], $params['category_id']);
+                $response = array('updated' => true);
+                break;
         }
         return $response;
     }
 
-    public function getProducts($page = 1, $perPage = 100) {
-        $products = $this->tagalysSync->sync();
-        return json_encode($products);
+    public function categorySave($category) {
+        // ALERT: Test this in 2.0 - 2.1
+        $this->logger->info("categorySave: params: " . json_encode($category));
+        try {
+            if ($category['id']){
+                // update mode
+                $categoryId = $this->tagalysCategoryHelper->updateCategoryDetails($category['store_id'],  $category['id'], $category['details']);
+            } else {
+                // create mode
+                $categoryId = $this->tagalysCategoryHelper->createCategory($category['store_id'], $category['details'], $category['enable_for_stores']);
+            }
+            $response = ['status' => 'OK', 'id' => $categoryId];
+        } catch (\Exception $e) {
+            $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
+        }
+        // FIXME: 
+        return json_encode($response);
     }
 }

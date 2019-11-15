@@ -241,17 +241,16 @@ class Listingpages extends Generic
         ));
 
         foreach ($this->tagalysConfiguration->getStoresForTagalys() as $key => $storeId) {
-            $storeMapping = $this->tagalysConfiguration->getConfig("category_pages_store_mapping", true);
             $hidden = false;
-            if (array_key_exists($storeId . '', $storeMapping) && $storeMapping[$storeId . ''] != $storeId . '') {
+            if (!$this->tagalysConfiguration->isPrimaryStore($storeId)) {
                 $hidden = true;
             }
             $store = $this->storeManagerInterface->getStore($storeId);
             $group = $store->getGroup();
             $website = $group->getWebsite();
             $storeDisplayLabel = $website->getName() . ' / '. $group->getName() . ' / ' . $store->getName();
-            $smartPageParentCategoryId = $this->tagalysCategoryHelper->getTagalysParentCategory($storeId);
-            $smartPageParentCategory = $this->categoryFactory->create()->load($smartPageParentCategoryId);
+            $smartPageParentCategoryId = $this->tagalysCategory->getTagalysParentCategory($storeId);
+            $smartPageParentCategory = $this->categoryFactory->create()->setStoreId($storeId)->load($smartPageParentCategoryId);
             if($smartPageParentCategory->getId()){
                 $smartPageEnabled = true;
             } else {
