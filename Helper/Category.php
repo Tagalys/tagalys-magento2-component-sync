@@ -957,7 +957,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function setTagalysParentCategory($storeId, $categoryId) {
         // tagalys_parent_category_for_root_ was previously tagalys_parent_category_store_$storeId
         // migrate the old clients
-        $rootCategoryId = $this->storeManagerInterface->getStore($storeId);
+        $rootCategoryId = $this->storeManagerInterface->getStore($storeId)->getRootCategoryId();
         $categoryId = $this->tagalysConfiguration->setConfig("tagalys_parent_category_for_root_$rootCategoryId", $categoryId);
     }
 

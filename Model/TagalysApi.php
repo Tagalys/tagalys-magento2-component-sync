@@ -272,8 +272,8 @@ class TagalysApi implements TagalysManagementInterface
                 foreach ($storeIds as $storeId) {
                     $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, ['store_id'=>$storeId,'is_active' => false]);
                 }
-                if ($this->tagalysCategoryHelper->canDelete($categoryId)) {
-                    $this->tagalysCategoryHelper->deleteCategory($categoryId);
+                if ($this->tagalysCategoryHelper->canDelete($categoryId) || $forceDelete) {
+                    $this->tagalysCategoryHelper->deleteTagalysCategory($categoryId);
                     $response = ['status' => 'OK', 'deleted' => true];
                 } else {
                     $activeStores = $this->tagalysCategoryHelper->getCategoryActiveStores($categoryId);

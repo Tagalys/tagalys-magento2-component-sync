@@ -101,7 +101,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'tagalys_plan_features' => '{}',
                 'legacy_mpage_categories' => '[]',
                 'category_pages_store_mapping' => '{}',
-                'integration_permissions' => '["Magento_Catalog::catalog", "Magento_Catalog::catalog_inventory", "Magento_Catalog::products", "Magento_Catalog::edit_product_design", "Magento_Catalog::categories", "Magento_Catalog::edit_category_design"]'
+                'integration_permissions' => '["Tagalys_Sync::tagalys"]'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
