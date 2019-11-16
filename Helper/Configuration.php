@@ -396,7 +396,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $store = $this->storeManager->getStore($storeId);
         $tagSetsAndCustomFields = $this->getTagSetsAndCustomFields($store->getId());
         $productsCount = $this->productFactory->create()->getCollection()->setStoreId($storeId)->addStoreFilter($storeId)->addAttributeToFilter('status', 1)->addAttributeToFilter('visibility', array("neq" => 1))->count();
-        $storeUrl = $this->storeManager->getStore($storeId)->getBaseUrl();
+        $storeUrl = $this->storeManager->getStore($storeId)->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_WEB, true);
         $storeDomain = parse_url($storeUrl)['host'];
         $configuration = array(
             'id' => $storeId,

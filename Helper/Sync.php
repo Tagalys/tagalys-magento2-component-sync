@@ -78,7 +78,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
     }
     public function _getDomain($storeId) {
         $store = $this->storeManager->getStore($storeId);
-        $baseUrl = $store->getBaseUrl();
+        $baseUrl = $store->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_WEB, true);
         $baseUrl = rtrim($baseUrl, '/');
         $exploded_1 = explode("://", $baseUrl);
         $replaced_1 = str_replace("-", "__", $exploded_1[1]);
@@ -521,7 +521,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 
             $triggerDatetime = strtotime($syncFileStatus['triggered_at']);
             $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
-            $storeUrl = $this->storeManager->getStore($storeId)->getBaseUrl();
+            $storeUrl = $this->storeManager->getStore($storeId)->getBaseUrl(\Magento\Framework\UrlInterface::URL_TYPE_WEB, true);
             $storeDomain = parse_url($storeUrl)['host'];
             $data = array(
                 'link' => $linkToFile,

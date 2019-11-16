@@ -119,8 +119,12 @@ class Edit extends \Magento\Backend\App\Action
                             $this->tagalysApi->log('info', 'Starting configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
                             $response = $this->tagalysConfiguration->syncClientConfiguration($params['stores_for_tagalys']);
                             if ($response === false || $response['result'] === false) {
+                                $message = "Sorry, something went wrong while saving your store's configuration. Contact us for support";
+                                if ($response !== false && array_key_exists('message', $response)) {
+                                    $message = $response['message'];
+                                }
                                 $this->tagalysApi->log('error', 'syncClientConfiguration returned false', array('stores_for_tagalys' => $params['stores_for_tagalys']));
-                                $this->messageManager->addErrorMessage("Sorry, something went wrong while saving your store's configuration. We've logged the issue and we'll get back once we know more. You can contact us here: cs@tagalys.com");
+                                $this->messageManager->addErrorMessage($message);
                                 $redirectToTab = 'sync_settings';
                             } else {
                                 $this->tagalysApi->log('info', 'Completed configuration sync', array('stores_for_tagalys' => $params['stores_for_tagalys']));
