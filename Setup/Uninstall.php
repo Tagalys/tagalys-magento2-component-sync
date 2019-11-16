@@ -23,6 +23,7 @@ class Uninstall implements UninstallInterface
         $connection = $setup->getConnection();
         $connection->dropTable($connection->getTableName('tagalys_queue'));
         $connection->dropTable($connection->getTableName('tagalys_config'));
+        $connection->dropTable($connection->getTableName('tagalys_category'));
         $setup->endSetup();
     }
 }
