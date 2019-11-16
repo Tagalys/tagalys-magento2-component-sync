@@ -8,7 +8,8 @@ class Queue extends \Magento\Framework\App\Helper\AbstractHelper
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Magento\Store\Model\StoreManagerInterface $storeManager,
         \Magento\ConfigurableProduct\Model\Product\Type\Configurable $configurableProduct,
-        \Magento\Catalog\Model\ProductFactory $productFactory
+        \Magento\Catalog\Model\ProductFactory $productFactory,
+        \Magento\Framework\App\ResourceConnection $resourceConnection
     )
     {
         $this->queueFactory = $queueFactory;
@@ -16,25 +17,34 @@ class Queue extends \Magento\Framework\App\Helper\AbstractHelper
         $this->storeManager = $storeManager;
         $this->configurableProduct = $configurableProduct;
         $this->productFactory = $productFactory;
+        $this->resourceConnection = $resourceConnection;
 
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_core.log');
         $this->tagalysLogger = new \Zend\Log\Logger();
         $this->tagalysLogger->addWriter($writer);
     }
 
-    public function insertUnique($productIds)
-    {
+    public function insertUnique($productIds) {
         if (!is_array($productIds)) {
             $productIds = array($productIds);
         }
-        foreach ($productIds as $i => $productId) {
-            $queue = $this->queueFactory->create();
-            if (!$queue->doesProductIdExist($productId)) {
-                $queue->setProductId($productId);
-                $queue->save();
-                $queue = $this->queueFactory->create();
-            }
+        $perPage = 100;
+        $offset = 0;
+        $queueTable = $this->resourceConnection->getTableName('tagalys_queue');
+        $productsToInsert = array_slice($productIds, $offset, $perPage);
+        while(count($productsToInsert) > 0){
+            $productsToInsert = implode('),(', $productsToInsert);
+            $sql = "REPLACE $queueTable (product_id) VALUES ($productsToInsert);";
+            $this->runSql($sql);
+            $offset += $perPage;
+            $productsToInsert = array_slice($productIds, $offset, $perPage);
         }
+        die();
+    }
+
+    private function runSql($sql){
+        $conn = $this->resourceConnection->getConnection();
+        $conn->query($sql);
     }
 
     public function truncateIfEmpty() {

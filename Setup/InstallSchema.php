@@ -81,6 +81,14 @@ class InstallSchema implements InstallSchemaInterface
                         'default' => '0'
                     ],
                     'Product ID'
+                )->addIndex(
+                    $installer->getIdxName(
+                        $queueTableName,
+                        ['product_id'],
+                        \Magento\Framework\DB\Adapter\AdapterInterface::INDEX_TYPE_UNIQUE
+                    ),
+                    ['product_id'],
+                    ['type' => \Magento\Framework\DB\Adapter\AdapterInterface::INDEX_TYPE_UNIQUE]
                 )
                 ->setComment('Tagalys Sync Queue Table')
                 ->setOption('type', 'InnoDB')
