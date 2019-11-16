@@ -97,6 +97,19 @@ class Listingpages extends Generic
             'value' => $this->tagalysConfiguration->getConfig("module:listingpages:enabled")
         ));
 
+        $enableFieldSet->addField("enable_smart_pages", 'select', array(
+            'name' => "enable_smart_pages",
+            'label' => "Allow Tagalys to create new pages",
+            'options' => array(
+                '1' => __('Yes'),
+                '0' => __('No')
+            ),
+            'after_element_html' => '<p><small id="smart-pages-info" style="font-weight: bold">This will allow you to create new categories from the Tagalys Dashboard whose products are dynamically managed by Tagalys based on various conditions.</small></p>',
+            'data-store-id' => 3,
+            'style' => 'width:100%',
+            'value'  => $this->tagalysConfiguration->getConfig("enable_smart_pages"),
+        ));
+
         $technicalConsiderationsFieldset = $form->addFieldset(
             'technical_considerations_fieldset',
             ['legend' => __('Technical Considerations'), 'collapsable' => true]
@@ -260,24 +273,12 @@ class Listingpages extends Generic
                 'store_'.$storeId.'_listing_pages',
                 ['legend' => 'Categories for store: '.$storeDisplayLabel, 'collapsable' => true]
             );
-            $storeListingPagesFieldset->addField("enable_smart_page_store_$storeId", 'select', array(
-                'name' => "enable_smart_page_store_$storeId",
-                'label' => "Enable Smart Categories",
-                'options' => array(
-                    '1' => __('Yes'),
-                    '0' => __('No')
-                ),
-                'after_element_html' => '<p><small style="font-weight: bold">This will allow you to create new categories from the Tagalys Dashboard whose products are dynamically managed by Tagalys based on various conditions.</small></p>',
-                'data-store-id' => 3,
-                'style' => 'width:100%',
-                'value'  => $this->tagalysConfiguration->getConfig("enable_smart_page_store_$storeId"),
-            ));
             $storeListingPagesFieldset->addField("smart_page_parent_category_name_store_$storeId", 'text', array(
                 'name' => "smart_page_parent_category_name_store_$storeId",
                 'label' => "Smart Categories parent category name",
                 'value'  => $smartPageParentCategory->getName(),
                 'placeholder' => 'Tagalys (default)',
-                'after_element_html' => '<p><small style="font-weight: bold">For your reference, not shown in the front-end.</small></p>',
+                'after_element_html' => '<p><small>For your reference, not shown in the front-end.</small></p>',
             ));
             $storeListingPagesFieldset->addField("smart_page_parent_category_url_key_store_$storeId", 'text', array(
                 'name' => "smart_page_parent_category_url_key_store_$storeId",

@@ -162,7 +162,7 @@ class Edit extends \Magento\Backend\App\Action
                         $this->tagalysConfiguration->setConfig('listing_pages:reindex_and_clear_cache_immediately', $params['reindex_and_clear_cache_immediately']);
                         $this->tagalysConfiguration->setConfig('listing_pages:position_sort_direction', $params['position_sort_direction']);
                         $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);
-                        
+                        $this->tagalysConfiguration->setConfig("enable_smart_pages", $params["enable_smart_pages"]);
                         foreach($params['stores_for_tagalys'] as $storeId) {
                             $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
                             $this->platformDetailsToSend['platform_pages_rendering_method'] = $params['category_pages_rendering_method'];
@@ -170,16 +170,15 @@ class Edit extends \Magento\Backend\App\Action
                             if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {
                                 $params[ 'categories_for_tagalys_store_' . $storeId] = array();
                             }
-                            if($params["enable_smart_page_store_$storeId"] == 1){
-                                $this->tagalysConfiguration->setConfig("enable_smart_page_store_$storeId", 1);
+                            if($params["enable_smart_pages"] == 1){
                                 if($params["smart_page_parent_category_name_store_$storeId"] == ""){
                                     $params["smart_page_parent_category_name_store_$storeId"] = 'Tagalys';
                                 }
                                 if(array_key_exists("smart_page_parent_category_url_key_store_$storeId", $params) && $params["smart_page_parent_category_url_key_store_$storeId"] == ""){
                                     $params["smart_page_parent_category_url_key_store_$storeId"] = 'buy';
                                 }
+                                $this->saveSmartPageParentCategory($storeId, $params);
                                 try{
-                                    $this->saveSmartPageParentCategory($storeId, $params);
                                 } catch(\Exception $e) {
                                     $this->messageManager->addErrorMessage($e->getMessage());
                                 }
@@ -212,7 +211,6 @@ class Edit extends \Magento\Backend\App\Action
                             $this->tagalysCategoryHelper->markStoreCategoryIdsForDeletionExcept($storeId, $categoryIds);
                             $this->storeManager->setCurrentStore($originalStoreId);
                         }
-                        
                         if ($params['category_pages_rendering_method'] == 'platform') {
                             $this->tagalysConfiguration->setConfig('listing_pages:categories_via_tagalys_js_enabled', '0');
                             if (array_key_exists('same_or_similar_products_across_all_stores', $params)) {
@@ -346,15 +344,5 @@ class Edit extends \Magento\Backend\App\Action
         $urlKey = $category->getUrlKey();
         $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
         $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);
-    }
-
-    private function migration(){
-        // move this code to somewhere else
-        $latest = '1.17.6';
-        $pluginVersion = $this->tagalysConfiguration->getConfig('plugin_version');
-        if($pluginVersion != $latest){
-
-            $this->tagalysConfiguration->setConfig('plugin_version', $latest);
-        }
     }
 }

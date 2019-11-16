@@ -433,7 +433,7 @@
         tgls_jq('#store_id_for_category_pages').change(function() {
             updateStoreCategoriesVisibility();
         });
-        tgls_jq('select[id^="enable_smart_page_store_"]').change(function() {
+        tgls_jq('#enable_smart_pages').change(function() {
             checkIfSmartPagesEnabled();
         });
         tgls_jq('#understand_and_agree').keyup(function() {
@@ -518,14 +518,15 @@
         }
 
         function checkIfSmartPagesEnabled() {
-            tgls_jq('select[id^="enable_smart_page_store_"]').each(function(i, elem) {
-                var $smartPageDivs = tgls_jq(elem).parents('.admin__fieldset').children('div[class*="smart_page_parent_category"]');
-                if(tgls_jq(elem).val() == 1){
-                    $smartPageDivs.show();
-                } else {
-                    $smartPageDivs.hide();
-                }
-            });
+            var $smartPageSelect = tgls_jq('#enable_smart_pages');
+            var $smartPageDivs = tgls_jq('div[class*="smart_page_parent_category"]');
+            if ($smartPageSelect.val() == 1) {
+                tgls_jq('#smart-pages-info').html('Scroll down to set store preferences');
+                $smartPageDivs.show();
+            } else {
+                tgls_jq('#smart-pages-info').html('This will allow you to create new categories from the Tagalys Dashboard whose products are dynamically managed by Tagalys based on various conditions.');
+                $smartPageDivs.hide();
+            }
         }
     })
 </script>
