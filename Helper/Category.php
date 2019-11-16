@@ -65,9 +65,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function createOrUpdateWithData($storeId, $categoryId, $createData, $updateData)
     {
         $firstItem = $this->tagalysCategoryFactory->create()->getCollection()
-        ->addFieldToFilter('category_id', $categoryId)
-        ->addFieldToFilter('store_id', $storeId)
-        ->getFirstItem();
+            ->addFieldToFilter('category_id', $categoryId)
+            ->addFieldToFilter('store_id', $storeId)
+            ->getFirstItem();
 
         try {
         if ($id = $firstItem->getId()) {
@@ -212,29 +212,29 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function _checkSyncLock($syncStatus)
     {
         if ($syncStatus['locked_by'] == null) {
-        return true;
-        } else {
-        // some other process has claimed the thread. if a crash occours, check last updated at < 15 minutes ago and try again.
-        $lockedAt = new \DateTime($syncStatus['updated_at']);
-        $now = new \DateTime();
-        $intervalSeconds = $now->getTimestamp() - $lockedAt->getTimestamp();
-        $minSecondsForOverride = 5 * 60;
-        if ($intervalSeconds > $minSecondsForOverride) {
-            $this->tagalysApi->log('warn', 'Overriding stale locked process for categories sync', array('pid' => $syncStatus['locked_by'], 'locked_seconds_ago' => $intervalSeconds));
             return true;
         } else {
-            $this->tagalysApi->log('warn', 'Categories sync locked by another process', array('pid' => $syncStatus['locked_by'], 'locked_seconds_ago' => $intervalSeconds));
-            return false;
-        }
+            // some other process has claimed the thread. if a crash occours, check last updated at < 15 minutes ago and try again.
+            $lockedAt = new \DateTime($syncStatus['updated_at']);
+            $now = new \DateTime();
+            $intervalSeconds = $now->getTimestamp() - $lockedAt->getTimestamp();
+            $minSecondsForOverride = 5 * 60;
+            if ($intervalSeconds > $minSecondsForOverride) {
+                $this->tagalysApi->log('warn', 'Overriding stale locked process for categories sync', array('pid' => $syncStatus['locked_by'], 'locked_seconds_ago' => $intervalSeconds));
+                return true;
+            } else {
+                $this->tagalysApi->log('warn', 'Categories sync locked by another process', array('pid' => $syncStatus['locked_by'], 'locked_seconds_ago' => $intervalSeconds));
+                return false;
+            }
         }
     }
 
     public function markPositionsSyncRequired($storeId, $categoryId)
     {
         $firstItem = $this->tagalysCategoryFactory->create()->getCollection()
-        ->addFieldToFilter('store_id', $storeId)
-        ->addFieldToFilter('category_id', $categoryId)
-        ->getFirstItem();
+            ->addFieldToFilter('store_id', $storeId)
+            ->addFieldToFilter('category_id', $categoryId)
+            ->getFirstItem();
         if ($id = $firstItem->getId()) {
         $firstItem->addData(array('positions_sync_required' => 1))->save();
         }
@@ -262,10 +262,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $conn = $this->resourceConnection->getConnection();
         $tableName = $this->resourceConnection->getTableName('tagalys_category');
         $whereData = array(
-        'status = ?' => 'failed'
+            'status = ?' => 'failed'
         );
         $updateData = array(
-        'status' => 'pending_sync'
+            'status' => 'pending_sync'
         );
         $conn->update($tableName, $updateData, $whereData);
         return true;
@@ -273,33 +273,33 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function getEnabledCount($storeId)
     {
         return $this->tagalysCategoryFactory->create()->getCollection()
-        ->addFieldToFilter('store_id', $storeId)
-        ->addFieldToFilter('marked_for_deletion', 0)
-        ->count();
+            ->addFieldToFilter('store_id', $storeId)
+            ->addFieldToFilter('marked_for_deletion', 0)
+            ->count();
     }
     public function getPendingSyncCount($storeId)
     {
         return $this->tagalysCategoryFactory->create()->getCollection()
-        ->addFieldToFilter('store_id', $storeId)
-        ->addFieldToFilter('status', 'pending_sync')
-        ->addFieldToFilter('marked_for_deletion', 0)
-        ->count();
+            ->addFieldToFilter('store_id', $storeId)
+            ->addFieldToFilter('status', 'pending_sync')
+            ->addFieldToFilter('marked_for_deletion', 0)
+            ->count();
     }
     public function getRequiringPositionsSyncCount($storeId)
     {
         return $this->tagalysCategoryFactory->create()->getCollection()
-        ->addFieldToFilter('store_id', $storeId)
-        ->addFieldToFilter('status', 'powered_by_tagalys')
-        ->addFieldToFilter('positions_sync_required', 1)
-        ->addFieldToFilter('marked_for_deletion', 0)
-        ->count();
+            ->addFieldToFilter('store_id', $storeId)
+            ->addFieldToFilter('status', 'powered_by_tagalys')
+            ->addFieldToFilter('positions_sync_required', 1)
+            ->addFieldToFilter('marked_for_deletion', 0)
+            ->count();
     }
     public function getRequiresPositionsSyncCollection()
     {
         $categoriesToSync = $this->tagalysCategoryFactory->create()->getCollection()
-        ->addFieldToFilter('status', 'powered_by_tagalys')
-        ->addFieldToFilter('positions_sync_required', 1)
-        ->addFieldToFilter('marked_for_deletion', 0);
+            ->addFieldToFilter('status', 'powered_by_tagalys')
+            ->addFieldToFilter('positions_sync_required', 1)
+            ->addFieldToFilter('marked_for_deletion', 0);
         return $categoriesToSync;
     }
 
@@ -325,26 +325,26 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 $numberCompleted = 0;
                 $circuitBreaker = 0;
                 while ($numberCompleted < $countToSyncInCronRun && $circuitBreaker < 26) {
-                $circuitBreaker += 1;
-                $categoriesToSync = $this->getRequiresPositionsSyncCollection()->setPageSize($perPage);
-                $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
-                $timeNow = $utcNow->format(\DateTime::ATOM);
-                $syncStatus['updated_at'] = $timeNow;
-                $this->tagalysConfiguration->setConfig('categories_sync_status', $syncStatus, true);
-                foreach ($categoriesToSync as $categoryToSync) {
-                    $storeId = $categoryToSync->getStoreId();
-                    $categoryId = $categoryToSync->getCategoryId();
-                    $newPositions = $this->tagalysApi->storeApiCall($storeId . '', '/v1/mpages/_platform/__categories-' . $categoryId . '/positions', array());
-                    if ($newPositions != false) {
-                    $this->performCategoryPositionUpdate($storeId, $categoryId, $newPositions['positions']);
-                    array_push($this->updatedCategories, $categoryId);
-                    $categoryToSync->addData(array('positions_sync_required' => 0, 'positions_synced_at' => date("Y-m-d H:i:s")))->save();
-                    } else {
-                    // api call failed
+                    $circuitBreaker += 1;
+                    $categoriesToSync = $this->getRequiresPositionsSyncCollection()->setPageSize($perPage);
+                    $utcNow = new \DateTime("now", new \DateTimeZone('UTC'));
+                    $timeNow = $utcNow->format(\DateTime::ATOM);
+                    $syncStatus['updated_at'] = $timeNow;
+                    $this->tagalysConfiguration->setConfig('categories_sync_status', $syncStatus, true);
+                    foreach ($categoriesToSync as $categoryToSync) {
+                        $storeId = $categoryToSync->getStoreId();
+                        $categoryId = $categoryToSync->getCategoryId();
+                        $newPositions = $this->tagalysApi->storeApiCall($storeId . '', '/v1/mpages/_platform/__categories-' . $categoryId . '/positions', array());
+                        if ($newPositions != false) {
+                            $this->performCategoryPositionUpdate($storeId, $categoryId, $newPositions['positions']);
+                            array_push($this->updatedCategories, $categoryId);
+                            $categoryToSync->addData(array('positions_sync_required' => 0, 'positions_synced_at' => date("Y-m-d H:i:s")))->save();
+                        } else {
+                            // api call failed
+                        }
                     }
-                }
-                $numberCompleted += $categoriesToSync->count();
-                // $this->logger("updatePositionsIfRequired: completed {$numberCompleted}", null, 'tagalys_processes.log', true);
+                    $numberCompleted += $categoriesToSync->count();
+                    // $this->logger("updatePositionsIfRequired: completed {$numberCompleted}", null, 'tagalys_processes.log', true);
                 }
                 $syncStatus['locked_by'] = null;
                 $this->tagalysConfiguration->setConfig('categories_sync_status', $syncStatus, true);
@@ -537,11 +537,11 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 ->addFieldToFilter('category_id', explode('-', $saveActionResponse['id'])[1])
                 ->getFirstItem();
                 if ($id = $firstItem->getId()) {
-                if ($saveActionResponse['saved']) {
-                    $firstItem->addData(array('status' => 'powered_by_tagalys', 'positions_sync_required' => 1))->save();
-                } else {
-                    $firstItem->addData(array('status' => 'failed'))->save();
-                }
+                    if ($saveActionResponse['saved']) {
+                        $firstItem->addData(array('status' => 'powered_by_tagalys', 'positions_sync_required' => 1))->save();
+                    } else {
+                        $firstItem->addData(array('status' => 'failed'))->save();
+                    }
                 }
             }
             foreach ($categoriesToDelete as $i => $categoryToDelete) {
@@ -554,10 +554,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
 
     public function assignParentCategoriesToAllProducts($viaDb = false){
         $productCollection = $this->productFactory->create()->getCollection()
-                        ->addAttributeToFilter('status', 1)
-                        ->addAttributeToFilter('visibility', array("neq" => 1))
-                        ->addAttributeToSelect('entity_id, product_id')
-                        ->load();
+            ->addAttributeToFilter('status', 1)
+            ->addAttributeToFilter('visibility', array("neq" => 1))
+            ->addAttributeToSelect('entity_id, product_id')
+            ->load();
         $this->resourceModelIterator->walk($productCollection->getSelect(), array(array($this, 'assignParentCategoriesToProductHandler')), array('viaDb' => $viaDb));
     }
 
@@ -624,7 +624,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             return false;
         }
     }
-        public function pushDownProductsIfRequired($productIds, $productCategories = null, $indexerToRun = 'product') {
+    public function pushDownProductsIfRequired($productIds, $productCategories = null, $indexerToRun = 'product') {
         // called from observers when new products are added to categories - in position ascending order, they should be positioned at the bottom of the page.
         $listingpagesEnabled = $this->tagalysConfiguration->getConfig('module:listingpages:enabled');
         if($listingpagesEnabled == '1') {
@@ -643,21 +643,21 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                     $this->runSqlForCategoryPositions($updateData, $whereData);
                     $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
                     if ($categoryProductIndexer->isScheduled() === false) {
-                    // reindex if index mode is update on save. not required for schedule because we don't want these showing up so it has the same effect. when tagalys syncs and updates positions, reindex will be triggered.
-                    switch($indexerToRun) {
-                        case 'product':
-                        $reindexAndClearCacheImmediately = $this->tagalysConfiguration->getConfig('listing_pages:reindex_and_clear_cache_immediately');
-                        if ($reindexAndClearCacheImmediately == '1') {
-                            $indexer = $this->indexerFactory->create()->load('catalog_product_category');
-                            $indexer->reindexList($productIds);
+                        // reindex if index mode is update on save. not required for schedule because we don't want these showing up so it has the same effect. when tagalys syncs and updates positions, reindex will be triggered.
+                        switch($indexerToRun) {
+                            case 'product':
+                                $reindexAndClearCacheImmediately = $this->tagalysConfiguration->getConfig('listing_pages:reindex_and_clear_cache_immediately');
+                                if ($reindexAndClearCacheImmediately == '1') {
+                                    $indexer = $this->indexerFactory->create()->load('catalog_product_category');
+                                    $indexer->reindexList($productIds);
+                                }
+                                // cache may already be getting updated. even otherwise, we don't need to update here as we don't want products to show up anyway. caches are cleared when positions are updated via Tagalys.
+                                break;
+                            case 'category':
+                                array_push($this->updatedCategories, $tagalysCategories);
+                                $this->processUpdatedCategories();
+                                break;
                         }
-                        // cache may already be getting updated. even otherwise, we don't need to update here as we don't want products to show up anyway. caches are cleared when positions are updated via Tagalys.
-                        break;
-                        case 'category':
-                        array_push($this->updatedCategories, $tagalysCategories);
-                        $this->processUpdatedCategories();
-                        break;
-                    }
                     }
                 }
             }

@@ -42,6 +42,7 @@ class TagalysApi implements TagalysManagementInterface
     }
 
     public function execute($params) {
+        // FIXME: outdated code
         switch ($params['info_type']) {
             case 'status':
                 try {
