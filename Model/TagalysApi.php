@@ -172,7 +172,7 @@ class TagalysApi implements TagalysManagementInterface
                     if ($params['product_positions'] == -1) {
                         $params['product_positions'] = [];
                     }
-                    $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['category_id'], $params['product_positions']);
+                    $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['identification']['store_id'], $params['category_id'], $params['product_positions']);
                     if ($res) {
                         $response = ['status' => 'OK', 'message' => $res];
                     } else {
@@ -249,7 +249,7 @@ class TagalysApi implements TagalysManagementInterface
         try {
             if ($category['id']){
                 // update mode
-                $categoryId = $this->tagalysCategoryHelper->updateCategoryDetails($category['store_id'],  $category['id'], $category['details']);
+                $categoryId = $this->tagalysCategoryHelper->updateCategoryDetails($category['id'], $category['details']);
             } else {
                 // create mode
                 $categoryId = $this->tagalysCategoryHelper->createCategory($category['store_id'], $category['details'], $category['enable_for_stores']);

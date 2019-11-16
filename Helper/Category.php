@@ -810,16 +810,28 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return true;
     }
 
-    public function bulkAssignProductsToCategoryAndRemove($categoryId, $productPositions) {
-        // remove products only from current store
+    public function bulkAssignProductsToCategoryAndRemove($storeId, $categoryId, $productPositions) {
         if($this->isTagalysCreated($categoryId)){
-          $productsToRemove = $this->getProductsNotIn($categoryId, $productPositions);
+          $productsToRemove = $this->getProductsToRemove($storeId, $categoryId, $productPositions);
           $this->bulkAssignProductsToCategoryViaDb($categoryId, $productPositions);
           $this->_paginateSqlRemove($categoryId, $productsToRemove);
           $this->reindexUpdatedCategories();
           return true;
         }
         throw new \Exception("Error: this category wasn't created by Tagalys");
+    }
+
+    public function getProductsToRemove($storeId, $categoryId, $newProducts){
+        $productsToRemove = [];
+        $indexTable = $this->getIndexTableName($storeId);
+        $sql = "SELECT product_id FROM $indexTable WHERE category_id = $categoryId AND store_id = $storeId AND visibility IN (2, 4); ";
+        $result = $this->runSqlSelect($sql);
+        foreach ($result as $row) {
+            if(!in_array($row['product_id'], $newProducts)){
+                $productsToRemove[] = $row['product_id'];
+            }
+        }
+        return $productsToRemove;
     }
 
     private function getProductsNotIn($categoryId, $productPositions){
@@ -1044,5 +1056,14 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
             return true;
         }
         return false;
+    }
+
+    public function getIndexTableName($storeId) {
+        $beforeM225 = (version_compare($this->productMetadataInterface->getVersion(), '2.2.5') < 0);
+        if ($beforeM225) {
+            return $this->resourceConnection->getTableName('catalog_category_product_index');
+        } else {
+            return ($this->resourceConnection->getTableName('catalog_category_product_index') . "_store$storeId");
+        }
     }
 }
