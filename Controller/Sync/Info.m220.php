@@ -242,7 +242,7 @@ class Info extends \Magento\Framework\App\Action\Action
                             if($params['product_positions'] == -1){
                                 $params['product_positions'] = [];
                             }
-                            $res = $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['category_id'], $params['product_positions']);
+                            $res = $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['identification']['store_id'], $params['category_id'], $params['product_positions']);
                             if($res) {
                                 $response = ['status'=>'OK', 'message'=>$res];
                             } else {

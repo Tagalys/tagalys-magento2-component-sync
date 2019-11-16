@@ -336,11 +336,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                     $categoryId = $categoryToSync->getCategoryId();
                     $newPositions = $this->tagalysApi->storeApiCall($storeId . '', '/v1/mpages/_platform/__categories-' . $categoryId . '/positions', array());
                     if ($newPositions != false) {
-                    if($this->tagalysConfiguration->getConfig('listing_pages:position_sort_direction') == 'asc'){
-                        $this->_updatePositions($categoryId, $newPositions['positions']);
-                    } else {
-                        $this->_updatePositionsReverse($categoryId, $newPositions['positions']);
-                    }
+                    $this->performCategoryPositionUpdate($storeId, $categoryId, $newPositions['positions']);
                     array_push($this->updatedCategories, $categoryId);
                     $categoryToSync->addData(array('positions_sync_required' => 0, 'positions_synced_at' => date("Y-m-d H:i:s")))->save();
                     } else {
@@ -358,20 +354,37 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         }
     }
 
-    public function _updatePositions($categoryId, $positions)
-    {
-        if ($this->isProductPushDownAllowed($categoryId)) {
-            $whereData = array(
-                'category_id = ?' => (int)$categoryId,
-                'position <= ?' => count($positions)
-            );
-            $updateData = array(
-                'position' => (count($positions) + 1)
-            );
-            $this->runSqlForCategoryPositions($updateData, $whereData);
+    public function _updatePositions($storeId, $categoryId, $positions) {
+        $indexTable = $this->getIndexTableName($storeId);
+        $pushDown = false;
+        $positionOffset = count($positions) + 1;
+        $whereData = array(
+            'category_id = ?' => (int)$categoryId,
+            'position <= ?' => $positionOffset
+        );
+        $updateData = array(
+            'position' => (count($positions) + 2)
+        );
+        if($this->isProductPushDownAllowed($categoryId)){
+            $pushDown = true;
+        } else {
+            $sql = "SELECT product_id FROM $indexTable WHERE category_id = $categoryId AND position <= $positionOffset AND store_id = $storeId AND visibility IN (2, 4); ";
+            $result = $this->runSqlSelect($sql);
+            $productsInStore = array();
+            foreach ($result as $row) {
+                $productsInStore[] = (int) $row['product_id'];
             }
+            if(count($productsInStore) > 0){
+                $pushDown = true;
+                $productsInStore = implode(', ', $productsInStore);
+                $whereData["product_id IN ($productsInStore)"] = "";
+            }
+        }
+        if ($pushDown) {
+            $this->runSqlForCategoryPositions($updateData, $whereData);
+        }
 
-            foreach ($positions as $productId => $productPosition) {
+        foreach ($positions as $productId => $productPosition) {
             $whereData = array(
                 'category_id = ?' => (int)$categoryId,
                 'product_id = ?' => (int)$productId
@@ -384,8 +397,37 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return true;
     }
 
-    public function _updatePositionsReverse($categoryId, $positions)
-    {
+    public function _updatePositionsReverse($storeId, $categoryId, $positions) {
+        $indexTable = $this->getIndexTable($storeId);
+        // check magento version before getting table name
+        $pushDown = false;
+        $positionOffset = 100;
+        $whereData = array(
+            'category_id = ?' => (int) $categoryId,
+            'position <= ?' => $positionOffset
+        );
+        $updateData = array(
+            'position' => (count($positions) + 2)
+        );
+        if ($this->isProductPushDownAllowed($categoryId)) {
+            $pushDown = true;
+        } else {
+            $sql = "SELECT product_id FROM $indexTable WHERE category_id = $categoryId AND position <= $positionOffset AND store_id = $storeId AND visibility IN (2, 4); ";
+            $result = $this->runSqlSelect($sql);
+            $productsInStore = array();
+            foreach ($result as $row) {
+                $productsInStore[] = (int) $row['product_id'];
+            }
+            if (count($productsInStore) > 0) {
+                $pushDown = true;
+                $productsInStore = implode(', ', $productsInStore);
+                $whereData["product_id IN ($productsInStore)"] = "";
+            }
+        }
+        if ($pushDown) {
+            $this->runSqlForCategoryPositions($updateData, $whereData);
+        }
+
         if ($this->isProductPushDownAllowed($categoryId)) {
             $whereData = array(
                 'category_id = ?' => (int)$categoryId,
@@ -395,10 +437,10 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 'position' => 99
             );
             $this->runSqlForCategoryPositions($updateData, $whereData);
-            }
+        }
 
-            $totalPositions = count($positions);
-            foreach ($positions as $productId => $productPosition) {
+        $totalPositions = count($positions);
+        foreach ($positions as $productId => $productPosition) {
             $whereData = array(
                 'category_id = ?' => (int)$categoryId,
                 'product_id = ?' => (int)$productId
@@ -688,13 +730,13 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $tagalysCategories = array_unique($tagalysCategories);
         return $tagalysCategories;
     }
-  
-    public function performCategoryPositionUpdate($categoryId, $positions) {
+
+    public function performCategoryPositionUpdate($storeId, $categoryId, $positions) {
         $sortOrder = $this->tagalysConfiguration->getConfig('listing_pages:position_sort_direction');
         if($sortOrder == 'asc') {
-            $this->_updatePositions($categoryId, $positions);
+            $this->_updatePositions($storeId, $categoryId, $positions);
         } else {
-            $this->_updatePositionsReverse($categoryId, $positions);
+            $this->_updatePositionsReverse($storeId, $categoryId, $positions);
         }
         $this->reindexUpdatedCategories($categoryId);
         return true;
