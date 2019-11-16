@@ -811,6 +811,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     }
 
     public function bulkAssignProductsToCategoryAndRemove($categoryId, $productPositions) {
+        // remove products only from current store
         if($this->isTagalysCreated($categoryId)){
           $productsToRemove = $this->getProductsNotIn($categoryId, $productPositions);
           $this->bulkAssignProductsToCategoryViaDb($categoryId, $productPositions);
@@ -1017,4 +1018,31 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return $storeIds;
     }
 
+    public function canDelete($categoryId){
+        $activeStores = $this->getCategoryActiveStores($categoryId);
+        if(count($activeStores) == 0){
+            return true;
+        }
+        return false;
+    }
+
+    public function getCategoryActiveStores($categoryId){
+        $activeStores = [];
+        $stores = $this->storeManagerInterface->getStores();
+        foreach ($stores as $storeId => $store) {
+            $category = $this->categoryFactory->create()->setStoreId($storeId)->load($categoryId);
+            if ($category->getIsActive() == '1'){
+                $activeStores[] = $storeId;
+            }
+        }
+        return $activeStores;
+    }
+
+    public function categoryExist($categoryId){
+        $categoryId = $this->categoryFactory->create()->load($categoryId)->getId();
+        if ($categoryId){
+            return true;
+        }
+        return false;
+    }
 }

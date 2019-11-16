@@ -166,19 +166,6 @@ class TagalysApi implements TagalysManagementInterface
                 $this->tagalysConfiguration->setConfig('tagalys_plan_features', $params['plan_features'], true);
                 $response = array('updated' => true);
                 break;
-            case 'delete_tagalys_category':
-                try {
-                    $this->logger->info("delete_tagalys_category: params: " . json_encode($params));
-                    $res = $this->tagalysCategoryHelper->deleteTagalysCategory($params['category_id']);
-                    if ($res) {
-                        $response = ['status' => 'OK', 'message' => $res];
-                    } else {
-                        $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
-                    }
-                } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
-                }
-                break;
             case 'assign_products_to_category_and_remove':
                 try {
                     $this->logger->info("assign_products_to_category_and_remove: params: " . json_encode($params));
@@ -271,7 +258,33 @@ class TagalysApi implements TagalysManagementInterface
         } catch (\Exception $e) {
             $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
         }
-        // FIXME: 
+        // FIXME: use Api Data Interface
+        return json_encode($response);
+    }
+
+    public function categoryTryDelete($storeIds, $categoryId, $forceDelete = false) {
+        $this->logger->info("categoryTryDelete: params: " . json_encode(['storeIds'=>$storeIds, 'categoryId'=>$categoryId, 'forceDelete'=>$forceDelete]));
+        try {
+            if ($this->tagalysCategoryHelper->categoryExist($categoryId)){
+                if (!is_array($storeIds)){
+                    $storeIds = [$storeIds];
+                }
+                foreach ($storeIds as $storeId) {
+                    $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, ['store_id'=>$storeId,'is_active' => false]);
+                }
+                if ($this->tagalysCategoryHelper->canDelete($categoryId)) {
+                    $this->tagalysCategoryHelper->deleteCategory($categoryId);
+                    $response = ['status' => 'OK', 'deleted' => true];
+                } else {
+                    $activeStores = $this->tagalysCategoryHelper->getCategoryActiveStores($categoryId);
+                    $response = ['status' => 'OK', 'deleted' => false, 'active_stores' => $activeStores];
+                }
+            } else {
+                $response = ['status' => 'OK', 'deleted' => true];
+            }
+        } catch (\Exception $e) {
+            $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
+        }
         return json_encode($response);
     }
 }

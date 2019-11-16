@@ -8,7 +8,7 @@ interface TagalysManagementInterface
 
 
     /**
-     * POST for Post api
+     * POST for Info api
      * @param mixed $params
      * @return string
      */
@@ -16,9 +16,18 @@ interface TagalysManagementInterface
     public function info($params);
 
     /**
-     * POST for Post api
+     * POST for Categories api
      * @param mixed $category
      * @return string
      */
     public function categorySave($category);
+
+    /**
+     * POST for Categories api
+     * @param mixed $storeIds
+     * @param int $categoryId
+     * @param boolean|null $forceDelete
+     * @return string
+     */
+    public function categoryTryDelete($storeIds, $categoryId, $forceDelete = false);
 }
