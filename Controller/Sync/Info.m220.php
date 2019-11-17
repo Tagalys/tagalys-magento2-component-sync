@@ -289,6 +289,10 @@ class Info extends \Magento\Framework\App\Action\Action
                         $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping'], true);
                         $response = array('updated' => true, $params['store_mapping']);
                         break;
+                    case 'update_product_update_detection_methods':
+                        $this->tagalysConfiguration->setConfig('product_update_detection_methods', $params['methods'], true);
+                        $response = array('updated' => true, $params['methods']);
+                        break;
                 }
             } else {
                 $this->tagalysApi->log('warn', 'Invalid identification in InfoAction', array('params' => $params));

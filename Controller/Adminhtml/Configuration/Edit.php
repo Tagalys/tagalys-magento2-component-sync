@@ -307,6 +307,14 @@ class Edit extends \Magento\Backend\App\Action
                     $this->tagalysSync->deleteIntegration();
                     $redirectToTab = 'api_credentials';
                     break;
+                case 'Enable monitoring of catalog_product_entity.updated_at':
+                    $productUpdateDetectionMethods = $this->tagalysConfiguration->setConfig('product_update_detection_methods', array('events', 'db.catalog_product_entity.updated_at'), true);
+                    $redirectToTab = 'support';
+                    break;
+                case 'Disable monitoring of catalog_product_entity.updated_at':
+                    $productUpdateDetectionMethods = $this->tagalysConfiguration->setConfig('product_update_detection_methods', array('events'), true);
+                    $redirectToTab = 'support';
+                    break;
             }
             return $this->_redirect('tagalys/configuration/edit/active_tab/'.$redirectToTab);
         }

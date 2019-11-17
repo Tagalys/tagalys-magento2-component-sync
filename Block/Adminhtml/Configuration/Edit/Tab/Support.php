@@ -165,6 +165,25 @@ class Support extends Generic
 
             $tagalysProductsSyncFieldset = $form->addFieldset('tagalys_full_resync_fieldset', array('legend' => __('Products Sync')));
 
+            $productUpdateDetectionMethods = $this->tagalysConfiguration->getConfig('product_update_detection_methods', true);
+            $updatedAtDetectionEnabled = false;
+            if (in_array('db.catalog_product_entity.updated_at', $productUpdateDetectionMethods)) {
+                $updatedAtDetectionEnabled = true;
+            }
+
+            $tagalysProductsSyncFieldset->addField('note_sync_mode', 'note', array(
+                'label' => 'Detecting product updates',
+                'text' => __('Tagalys automatically detects product updates made from the Magento Admin interface via the Catalog/Products, Catalog/Categories and Data Transfer/Import sections. If you are using third-party / custom code that doesn\'t dispatch the standard Magento hooks, there are two options to let us know:<ol><li>Trigger the "tagalys_record_updated_products" event</li><li>If your code updates the updated_at column of the catalog_product_entity table, you can enable monitoring of this field (currently <strong>'.($updatedAtDetectionEnabled ? 'On' : 'Off').'</strong>)</li></ol>')
+            ));
+            $tagalysProductsSyncFieldset->addField('submit_sync_mode', 'submit', array(
+                'label' => '',
+                'name' => 'tagalys_submit_action',
+                'value' => ($updatedAtDetectionEnabled ? 'Disable' : 'Enable'). ' monitoring of catalog_product_entity.updated_at',
+                'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
+                'class'=> "tagalys-button-submit",
+                'tabindex' => 1
+            ));
+
             $tagalysProductsSyncFieldset->addField('note_resync', 'note', array(
                 'label' => 'Full Sync',
                 'text' => __('This will trigger a full resync of your products to Tagalys. Do this only with direction from Tagalys Support. Please note that this will cause high CPU usage on your server. We recommend that you do this at low traffic hours.')
@@ -177,10 +196,6 @@ class Support extends Generic
                 'onclick' => 'if (this.classList.contains(\'clicked\')) { return false; } else {  this.className += \' clicked\'; var that = this; setTimeout(function(){ that.value=\'Please wait…\'; that.disabled=true; }, 50); return true; }',
                 'class'=> "tagalys-button-submit",
                 'tabindex' => 1
-            ));
-
-            $tagalysProductsSyncFieldset->addField('note_cron', 'note', array(
-                'text' => __('<small><b>NOTE: Please make sure Cron is setup and running. <a target=_blank href="http://devdocs.magento.com/guides/v2.2/config-guide/cli/config-cli-subcommands-cron.html">Cron Documentation</a></b></small>'),
             ));
 
             $tagalysProductsSyncFieldset->addField('note_clear_sync_updates', 'note', array(
