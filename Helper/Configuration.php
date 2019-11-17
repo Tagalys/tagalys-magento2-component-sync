@@ -101,7 +101,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'tagalys_plan_features' => '{}',
                 'legacy_mpage_categories' => '[]',
                 'category_pages_store_mapping' => '{}',
-                'integration_permissions' => '["Tagalys_Sync::tagalys"]'
+                'integration_permissions' => '["Tagalys_Sync::tagalys"]',
+                'product_update_detection_methods' => '["events"]' // or '["events","updated_at"]'
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];

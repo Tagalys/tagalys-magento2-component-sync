@@ -20,7 +20,8 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         \Magento\Integration\Model\IntegrationFactory $integrationFactory,
         \Magento\Integration\Model\Oauth\Token $oauthToken,
         \Magento\Integration\Model\AuthorizationService $authorizationService,
-        \Magento\Integration\Model\OauthService $oauthService
+        \Magento\Integration\Model\OauthService $oauthService,
+        \Magento\Framework\App\ResourceConnection $resourceConnection
     )
     {
         $this->tagalysConfiguration = $tagalysConfiguration;
@@ -38,6 +39,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         $this->oauthToken = $oauthToken;
         $this->authorizationService = $authorizationService;
         $this->oauthService = $oauthService;
+        $this->resourceConnection = $resourceConnection;
 
         $this->filesystem = $filesystem;
         $this->directory = $filesystem->getDirectoryWrite(\Magento\Framework\App\Filesystem\DirectoryList::MEDIA);
@@ -65,6 +67,12 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 'force_regenerate_thumbnails' => $forceRegenerateThumbnails
             )));
             $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
+            // triggerFeedForStore is generally called in a loop for all stores, so working without store context in sync:method:db.catalog_product_entity.updated_at:last_checked is safe
+
+            $conn = $this->resourceConnection->getConnection();
+            $tableName = $this->resourceConnection->getTableName('catalog_product_entity');
+            $lastUpdatedAt = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
+            $this->tagalysConfiguration->setConfig("sync:method:db.catalog_product_entity.updated_at:last_checked", $lastUpdatedAt);
             return true;
         } else {
             return false;
@@ -121,6 +129,35 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         $this->tagalysCategory->maintenanceSync();
     }
 
+    public function checkUpdatedAtAndInsertIntoSyncQueue() {
+        $conn = $this->resourceConnection->getConnection();
+        $tableName = $this->resourceConnection->getTableName('catalog_product_entity');
+
+        $lastChecked = $this->tagalysConfiguration->getConfig("sync:method:db.catalog_product_entity.updated_at:last_checked");
+        if ($lastChecked == NULL) {
+            $lastUpdatedAt = end($conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1"))['updated_at'];
+            $lastChecked = $lastUpdatedAt;
+        }
+        $lastId = 0;
+        while (true) {
+            $selectQuery = "SELECT entity_id from $tableName WHERE entity_id > $lastId and updated_at > '$lastChecked' ORDER BY entity_id ASC LIMIT 100";
+            $pageOfProducts = $conn->fetchAll($selectQuery);
+            $lastNumberOfResults = count($pageOfProducts);
+            if ($lastNumberOfResults > 0) {
+                foreach ($pageOfProducts as $i => $productEntityRow) {
+                    // TODO: convert to batch if possible
+                    $this->queueHelper->insertUnique($productEntityRow['entity_id']);
+                }
+                $lastId = end($pageOfProducts)['entity_id'];
+            } else {
+                break;
+            }
+        }
+
+        $lastUpdatedAt = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
+        $this->tagalysConfiguration->setConfig("sync:method:db.catalog_product_entity.updated_at:last_checked", $lastUpdatedAt);
+    }
+
     public function sync($maxProducts = 500, $max_categories = 50) {
         $this->maxProducts = $maxProducts;
         if ($this->perPage > $maxProducts) {
@@ -138,7 +175,13 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
             // 3. sync pending categories
             $this->tagalysCategory->sync($max_categories);
 
-            // 4. check queue size and (clear_queue, trigger_feed) if required
+            // 4. check updated_at if enabled
+            $productUpdateDetectionMethods = $this->tagalysConfiguration->getConfig('product_update_detection_methods', true);
+            if (in_array('db.catalog_product_entity.updated_at', $productUpdateDetectionMethods)) {
+                $this->checkUpdatedAtAndInsertIntoSyncQueue();
+            }
+
+            // 5. check queue size and (clear_queue, trigger_feed) if required
             $remainingProductUpdates = $this->queueFactory->create()->getCollection()->count();
             $clearQueueAndTriggerResync = false;
             if ($remainingProductUpdates > 1) { // don't waste query cycles if updates are under 100
@@ -159,7 +202,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 }
             }
 
-            // 5. get product ids from update queue to be processed in this cron instance
+            // 6. get product ids from update queue to be processed in this cron instance
             $productIdsFromUpdatesQueueForCronInstance = $this->_productIdsFromUpdatesQueueForCronInstance();
             // products from obervers are added to queue without any checks. so add related configurable products if necessary
             foreach($productIdsFromUpdatesQueueForCronInstance as $productId) {
@@ -167,7 +210,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 
             }
 
-            // 6. perform feed, updates sync (updates only if feed sync is finished)
+            // 7. perform feed, updates sync (updates only if feed sync is finished)
             $updatesPerformed = array();
             foreach($stores as $i => $storeId) {
                 $updatesPerformed[$storeId] = $this->_syncForStore($storeId, $productIdsFromUpdatesQueueForCronInstance);
