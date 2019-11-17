@@ -88,7 +88,7 @@ class InstallSchema implements InstallSchemaInterface
                         \Magento\Framework\DB\Adapter\AdapterInterface::INDEX_TYPE_UNIQUE
                     ),
                     ['product_id'],
-                    ['type' => \Magento\Framework\DB\Adapter\AdapterInterface::INDEX_TYPE_UNIQUE]
+                    \Magento\Framework\DB\Adapter\AdapterInterface::INDEX_TYPE_UNIQUE
                 )
                 ->setComment('Tagalys Sync Queue Table')
                 ->setOption('type', 'InnoDB')
