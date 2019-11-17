@@ -39,7 +39,6 @@ class Queue extends \Magento\Framework\App\Helper\AbstractHelper
             $offset += $perPage;
             $productsToInsert = array_slice($productIds, $offset, $perPage);
         }
-        die();
     }
 
     private function runSql($sql){

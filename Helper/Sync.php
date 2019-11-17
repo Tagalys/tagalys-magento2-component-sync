@@ -144,10 +144,11 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
             $pageOfProducts = $conn->fetchAll($selectQuery);
             $lastNumberOfResults = count($pageOfProducts);
             if ($lastNumberOfResults > 0) {
+                $productIds = array();
                 foreach ($pageOfProducts as $i => $productEntityRow) {
-                    // TODO: convert to batch if possible
-                    $this->queueHelper->insertUnique($productEntityRow['entity_id']);
+                    array_push($productIds, $productEntityRow['entity_id']);
                 }
+                $this->queueHelper->insertUnique($productIds);
                 $lastId = end($pageOfProducts)['entity_id'];
             } else {
                 break;
