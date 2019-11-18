@@ -170,17 +170,13 @@ class Edit extends \Magento\Backend\App\Action
                             if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {
                                 $params[ 'categories_for_tagalys_store_' . $storeId] = array();
                             }
-                            if($params["enable_smart_pages"] == 1 && $this->tagalysConfiguration->isPrimaryStore($storeId)){
-                                if($params["smart_page_parent_category_name_store_$storeId"] == ""){
-                                    $params["smart_page_parent_category_name_store_$storeId"] = 'Tagalys';
-                                }
-                                if(array_key_exists("smart_page_parent_category_url_key_store_$storeId", $params) && $params["smart_page_parent_category_url_key_store_$storeId"] == ""){
-                                    $params["smart_page_parent_category_url_key_store_$storeId"] = 'buy';
-                                }
-                                $this->saveSmartPageParentCategory($storeId, $params);
+                            if($params["enable_smart_pages"] == 1){
+                                $this->platformDetailsToSend['access_token'] = $this->tagalysSync->getAccessToken();
                                 try{
+                                    $this->saveSmartPageParentCategory($storeId, $params);
                                 } catch(\Exception $e) {
                                     $this->messageManager->addErrorMessage($e->getMessage());
+                                    $this->logger->err(json_encode(["saveSmartPageParentCategory: failed", $e->getMessage(), $e->getTrace()]));
                                 }
                             }
                             $this->tagalysApi->storeApiCall($storeId . '', '/v1/stores/update_platform_details', ['platform_details' => $this->platformDetailsToSend]);
@@ -211,7 +207,6 @@ class Edit extends \Magento\Backend\App\Action
                             $this->tagalysCategoryHelper->markStoreCategoryIdsForDeletionExcept($storeId, $categoryIds);
                             $this->storeManager->setCurrentStore($originalStoreId);
                         }
-                        die();
                         if ($params['category_pages_rendering_method'] == 'platform') {
                             $this->tagalysConfiguration->setConfig('listing_pages:categories_via_tagalys_js_enabled', '0');
                             if (array_key_exists('same_or_similar_products_across_all_stores', $params)) {
@@ -327,28 +322,35 @@ class Edit extends \Magento\Backend\App\Action
     }
 
     private function saveSmartPageParentCategory($storeId, $params) {
-        $categoryId = $this->tagalysCategoryHelper->getTagalysParentCategory($storeId);
-        $mappedStores = $this->tagalysConfiguration->getMappedStores($storeId, true);
-        foreach ($mappedStores as $mappedStoreId) {
-            $categoryDetails = [
-                'store_id' => $mappedStoreId,
-                'name' => $params["smart_page_parent_category_name_store_$storeId"]
-            ];
-            if (array_key_exists("smart_page_parent_category_url_key_store_$storeId", $params)) {
-                $categoryDetails['url_key'] = strtolower($params["smart_page_parent_category_url_key_store_$storeId"]);
-            }
-            if ($categoryId) {
-                $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, $categoryDetails);
+        if($this->tagalysConfiguration->isPrimaryStore($storeId)){
+            $categoryId = $this->tagalysCategoryHelper->getTagalysParentCategory($storeId);
+            $mappedStores = $this->tagalysConfiguration->getMappedStores($storeId, true);
+            $categoryDetails = [];
+            if ($params["smart_page_parent_category_name_store_$storeId"] == "") {
+                $categoryDetails['name'] = 'Tagalys';
             } else {
-                $categoryId = $this->tagalysCategoryHelper->createTagalysParentCategory($storeId, $categoryDetails);
+                $categoryDetails['name'] = $params["smart_page_parent_category_name_store_$storeId"];
             }
-            $category = $this->categoryFactory->create()->load($categoryId);
-            $this->platformDetailsToSend['parent_category_id'] = $category->getId();
-            $this->platformDetailsToSend['parent_category_name'] = $category->getName();
-            $this->platformDetailsToSend['access_token'] = $this->tagalysSync->getAccessToken();
-            $urlKey = $category->getUrlKey();
-            $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
-            $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);
+            if (array_key_exists("smart_page_parent_category_url_key_store_$storeId", $params)) {
+                if ($params["smart_page_parent_category_url_key_store_$storeId"] == ""){
+                    $categoryDetails['url_key'] = 'buy';
+                } else {
+                    $categoryDetails['url_key'] = strtolower($params["smart_page_parent_category_url_key_store_$storeId"]);
+                }
+            }
+            foreach ($mappedStores as $mappedStoreId) {
+                if ($categoryId) {
+                    $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, $categoryDetails, $mappedStoreId);
+                } else {
+                    $categoryId = $this->tagalysCategoryHelper->createTagalysParentCategory($storeId, $categoryDetails);
+                }
+                $category = $this->categoryFactory->create()->setStoreId($mappedStoreId)->load($categoryId);
+                $this->platformDetailsToSend['parent_category_id'] = $category->getId();
+                $this->platformDetailsToSend['parent_category_name'] = $category->getName();
+                $urlKey = $category->getUrlKey();
+                $urlSuffix = $this->scopeConfig->getValue('catalog/seo/category_url_suffix', \Magento\Store\Model\ScopeInterface::SCOPE_STORE, $storeId);
+                $this->tagalysApi->clientApiCall('/v1/mpages/update_base_url', ['url_key' => $urlKey, 'store_id' => $storeId, 'url_suffix' => $urlSuffix]);
+            }
         }
     }
 }

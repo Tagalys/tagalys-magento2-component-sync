@@ -753,30 +753,39 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return false;
     }
 
-    public function createCategory($storeId, $categoryDetails, $enableForStores = []) {
+    public function createCategory($storeId, $categoryDetails, $forStores = []) {
         $parentCategoryId = $this->getTagalysParentCategory($storeId);
         if ($parentCategoryId == null) {
             throw new \Exception("Tagalys parent category not created. Please enable Smart Categories in Tagalys Configuration.");
         }
         $categoryDetails['is_active'] = false;
         $categoryId = $this->_createCategory($parentCategoryId, $categoryDetails);
-        foreach ($enableForStores as $sid) {
-            $this->updateCategoryDetails($categoryId, ['store_id'=>$sid, 'is_active'=> true]);
+        foreach ($forStores as $sid) {
+            $this->updateCategoryDetails($categoryId, ['is_active'=> true], $sid);
         }
         return $categoryId;
     }
 
-    public function updateCategoryDetails($categoryId, $categoryDetails) {
+    public function updateCategoryDetails($categoryId, $categoryDetails, $forStores = []) {
         $this->logger->info("updateCategoryDetails: category_id: $categoryId, categoryDetails: ".json_encode($categoryDetails));
+        if(!is_array($forStores)){
+            $forStores = [$forStores];
+        }
         $category = $this->categoryFactory->create()->load($categoryId);
         if($category->getId() == null){
             throw new \Exception("Platform category not found");
         }
         $categoryDetails['default_sort_by'] = 'position';
         $category->addData($categoryDetails);
-        $category->save();
+        if (count($forStores) > 0){
+            foreach ($forStores as $storeId) {
+                $category->setStoreId($storeId)->save();
+            }
+        } else {
+            $category->save();
+        }
         $this->categoryUpdateAfter($category);
-        return true;
+        return $categoryId;
     }
 
     public function categoryUpdateAfter($category){
@@ -1116,7 +1125,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         if ($beforeM225) {
             return $this->resourceConnection->getTableName('catalog_category_product_index');
         } else {
-            return ($this->resourceConnection->getTableName('catalog_category_product_index') . "_store$storeId");
+            return ($this->resourceConnection->getTableName("catalog_category_product_index_store$storeId"));
         }
     }
 }
