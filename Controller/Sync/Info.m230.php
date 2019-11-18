@@ -239,14 +239,14 @@ class Info extends \Magento\Framework\App\Action\Action implements CsrfAwareActi
                             if($params['product_positions'] == -1){
                                 $params['product_positions'] = [];
                             }
-                            $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['category_id'], $params['product_positions']);
+                            $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['identification']['store_id'], $params['category_id'], $params['product_positions']);
                             if($res) {
                                 $response = ['status'=>'OK', 'message'=>$res];
                             } else {
                                 $response = ['status'=>'error', 'message'=>'Unknown error occurred'];
                             }
                         } catch(\Exception $e){
-                            $response = ['status'=> 'error', 'message' => $e->getMessage()];
+                            $response = ['status'=> 'error', 'message' => $e->getMessage(), $e->getTrace()];
                         }
                         break;
                     case 'update_product_positions':
