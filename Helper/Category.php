@@ -855,15 +855,15 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function bulkAssignProductsToCategoryAndRemove($storeId, $categoryId, $productPositions) {
         if($this->isTagalysCreated($categoryId)){
           $productsToRemove = $this->getProductsToRemove($storeId, $categoryId, $productPositions);
-          $this->bulkAssignProductsToCategoryViaDb($categoryId, $productPositions);
           $this->_paginateSqlRemove($categoryId, $productsToRemove);
+          $this->bulkAssignProductsToCategoryViaDb($categoryId, $productPositions);
           $this->reindexUpdatedCategories();
           return true;
         }
         throw new \Exception("Error: this category wasn't created by Tagalys");
     }
 
-    public function getProductsToRemove($storeId, $categoryId, $newProducts){
+    private function getProductsToRemove($storeId, $categoryId, $newProducts){
         $productsToRemove = [];
         $indexTable = $this->getIndexTableName($storeId);
         $sql = "SELECT product_id FROM $indexTable WHERE category_id = $categoryId AND store_id = $storeId AND visibility IN (2, 4); ";
@@ -887,28 +887,39 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return array_diff($productsInTable, $productPositions);
     }
 
-    public function bulkAssignProductsToCategoryViaDb($categoryId, $productPositions) {
+    private function bulkAssignProductsToCategoryViaDb($categoryId, $productPositions) {
         if(count($productPositions)>0){
             if($this->tagalysConfiguration->isSortedReverse()){
                 array_reverse($productPositions);
             }
-            $tableName = $this->resourceConnection->getTableName('catalog_category_product');
-            $sql = "REPLACE $tableName (category_id, product_id, position) VALUES ";
-            $this->paginateSqlInsert($sql, $categoryId, $productPositions);
+            $this->paginateSqlInsert($categoryId, $productPositions);
             $this->updatedCategories[] = $categoryId;
         }
     }
 
-    private function paginateSqlInsert($sql, $categoryId, $productPositions) {
-        $rows = [];
+    private function paginateSqlInsert($categoryId, $productPositions) {
+        $existingProducts = [];
+        $rowsToInsert = [];
         $productCount = count($productPositions);
+        $tableName = $this->resourceConnection->getTableName('catalog_category_product');
+        $sql = "SELECT product_id FROM $tableName WHERE category_id=$categoryId;";
+        $rows = $this->runSqlSelect($sql);
+        foreach ($rows as $row) {
+            $existingProducts[] = $row['product_id'];
+        }
         for ($index=1; $index <= $productCount; $index++) {
             $productId = $productPositions[$index-1];
-            $rows[] = "($categoryId, $productId, $index)";
-            if( $index % 100 == 0 || $index == $productCount ){
-                $values = implode(', ', $rows);
-                $query = $sql . $values . ';';
-                $rows = [];
+            if(in_array($productId, $existingProducts)){
+                $updateSql = "UPDATE $tableName SET position=$index WHERE category_id=$categoryId AND product_id=$productId;";
+                $this->runSql($updateSql);
+            } else {
+                $rowsToInsert[] = "($categoryId, $productId, $index)";
+            }
+            if( ($index % 100 == 0 || $index == $productCount) && count($rowsToInsert) > 0 ){
+                $insertSql = "INSERT INTO $tableName (category_id, product_id, position) VALUES ";
+                $values = implode(', ', $rowsToInsert);
+                $query = $insertSql . $values . ';';
+                $rowsToInsert = [];
                 $this->runSql($query);
             }
         }

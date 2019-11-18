@@ -608,15 +608,26 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
 
     public function getMappedStores($storeId, $includeMe = false) {
         $stores = [];
+        if ($includeMe) {
+            $stores[] = $storeId;
+        }
         $storeMapping = $this->getConfig("category_pages_store_mapping", true);
         foreach ($storeMapping as $child => $parent) {
             if ($parent == $storeId){
                 $stores[] = $child;
             }
         }
-        if ($includeMe){
-            $stores[] = $storeId;
-        }
         return $stores;
+    }
+
+    public function getStoreLabel($storeId){
+        $storeDisplayLabel = $this->getConfig("store_{$storeId}_display_label");
+        if (!$storeDisplayLabel){
+            $store = $this->storeManager->getStore($storeId);
+            $group = $store->getGroup();
+            $website = $group->getWebsite();
+            $storeDisplayLabel = $website->getName() . ' / ' . $group->getName() . ' / ' . $store->getName();
+        }
+        return $storeDisplayLabel;
     }
 }
