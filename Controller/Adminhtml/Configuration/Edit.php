@@ -167,8 +167,8 @@ class Edit extends \Magento\Backend\App\Action
                         $this->tagalysConfiguration->setConfig('listing_pages:position_sort_direction', $params['position_sort_direction']);
                         $this->tagalysConfiguration->setConfig('listing_pages:understand_and_agree', $params['understand_and_agree']);
                         $this->tagalysConfiguration->setConfig("enable_smart_pages", $params["enable_smart_pages"]);
+                        $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
                         foreach($params['stores_for_tagalys'] as $storeId) {
-                            $categoryProductIndexer = $this->indexerFactory->create()->load('catalog_category_product');
                             $this->platformDetailsToSend['platform_pages_rendering_method'] = $params['category_pages_rendering_method'];
                             $this->platformDetailsToSend['magento_category_products_indexer_mode'] = ($categoryProductIndexer->isScheduled() ? 'update_by_schedule' : 'update_on_save');
                             if (!array_key_exists('categories_for_tagalys_store_' . $storeId, $params)) {
