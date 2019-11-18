@@ -753,8 +753,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         return false;
     }
 
-    public function createCategory($storeId, $categoryDetails, $forStores = []) {
-        $parentCategoryId = $this->getTagalysParentCategory($storeId);
+    public function createCategory($categoryDetails, $forStores) {
+        $parentCategoryId = $this->getTagalysParentCategory($forStores[0]);
         if ($parentCategoryId == null) {
             throw new \Exception("Tagalys parent category not created. Please enable Smart Categories in Tagalys Configuration.");
         }

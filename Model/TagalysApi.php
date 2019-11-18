@@ -253,7 +253,7 @@ class TagalysApi implements TagalysManagementInterface
                 $categoryId = $this->tagalysCategoryHelper->updateCategoryDetails($category['id'], $category['details'], $category['for_stores']);
             } else {
                 // create mode
-                $categoryId = $this->tagalysCategoryHelper->createCategory($category['store_id'], $category['details'], $category['for_stores']);
+                $categoryId = $this->tagalysCategoryHelper->createCategory($category['details'], $category['for_stores']);
             }
             $response = ['status' => 'OK', 'id' => $categoryId];
         } catch (\Exception $e) {
