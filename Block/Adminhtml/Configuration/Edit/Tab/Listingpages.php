@@ -254,14 +254,10 @@ class Listingpages extends Generic
         ));
 
         foreach ($this->tagalysConfiguration->getStoresForTagalys() as $key => $storeId) {
-            $hidden = false;
             if (!$this->tagalysConfiguration->isPrimaryStore($storeId)) {
-                $hidden = true;
+                continue;
             }
-            $store = $this->storeManagerInterface->getStore($storeId);
-            $group = $store->getGroup();
-            $website = $group->getWebsite();
-            $storeDisplayLabel = $website->getName() . ' / '. $group->getName() . ' / ' . $store->getName();
+            $storeDisplayLabel = $this->tagalysConfiguration->getStoreLabel($storeId);
             $smartPageParentCategoryId = $this->tagalysCategory->getTagalysParentCategory($storeId);
             $smartPageParentCategory = $this->categoryFactory->create()->setStoreId($storeId)->load($smartPageParentCategoryId);
             if($smartPageParentCategory->getId()){
@@ -291,7 +287,7 @@ class Listingpages extends Generic
                 'name' => "categories_for_tagalys_store_$storeId",
                 'onclick' => "return false;",
                 'onchange' => "return false;",
-                'class' => 'categories-for-tagalys-store'. ($hidden ? ' force-hide-store-categories ' : ''),
+                'class' => 'categories-for-tagalys-store',
                 'value'  => $this->tagalysConfiguration->getCategoriesForTagalys($storeId),
                 'values' => $this->tagalysConfiguration->getAllCategories($storeId),
                 'style' => "width:100%; height: 400px; display: none;",
