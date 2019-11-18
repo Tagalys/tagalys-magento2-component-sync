@@ -102,7 +102,8 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'legacy_mpage_categories' => '[]',
                 'category_pages_store_mapping' => '{}',
                 'integration_permissions' => '["Tagalys_Sync::tagalys"]',
-                'product_update_detection_methods' => '["events"]' // or '["events","updated_at"]'
+                'product_update_detection_methods' => '["events"]', // or '["events","updated_at"]'
+                'use_optimized_product_updates' => true
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {
                 $configValue = $defaultConfigValues[$configPath];
@@ -148,12 +149,15 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $connection->truncateTable($tableName);
     }
 
-    public function getStoresForTagalys() {
+    public function getStoresForTagalys($includeDefault = false) {
         $storesForTagalys = $this->getConfig("stores", true);
         
         if ($storesForTagalys != NULL) {
             if (!is_array($storesForTagalys)) {
                 $storesForTagalys = array($storesForTagalys);
+            }
+            if ($includeDefault){
+                $storesForTagalys[] = '0';
             }
             return $storesForTagalys;
         }

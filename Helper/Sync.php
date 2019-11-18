@@ -135,23 +135,28 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
 
         $lastChecked = $this->tagalysConfiguration->getConfig("sync:method:db.catalog_product_entity.updated_at:last_checked");
         if ($lastChecked == NULL) {
-            $lastUpdatedAt = end($conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1"))['updated_at'];
-            $lastChecked = $lastUpdatedAt;
+            // $lastUpdatedAt = end($conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1"))['updated_at'];
+            $lastChecked = date('Y-m-d H:i:s', strtotime('-10 min'));
         }
-        $lastId = 0;
-        while (true) {
-            $selectQuery = "SELECT entity_id from $tableName WHERE entity_id > $lastId and updated_at > '$lastChecked' ORDER BY entity_id ASC LIMIT 100";
-            $pageOfProducts = $conn->fetchAll($selectQuery);
-            $lastNumberOfResults = count($pageOfProducts);
-            if ($lastNumberOfResults > 0) {
-                $productIds = array();
-                foreach ($pageOfProducts as $i => $productEntityRow) {
-                    array_push($productIds, $productEntityRow['entity_id']);
+        $optimize = $this->tagalysConfiguration->getConfig('use_optimized_product_updates');
+        if ($optimize){
+            $this->queueHelper->importProductsToSync();
+        } else {
+            $lastId = 0;
+            while (true) {
+                $selectQuery = "SELECT entity_id from $tableName WHERE entity_id > $lastId and updated_at > '$lastChecked' ORDER BY entity_id ASC LIMIT 1000";
+                $pageOfProducts = $conn->fetchAll($selectQuery);
+                $lastNumberOfResults = count($pageOfProducts);
+                if ($lastNumberOfResults > 0) {
+                    $productIds = array();
+                    foreach ($pageOfProducts as $i => $productEntityRow) {
+                        array_push($productIds, $productEntityRow['entity_id']);
+                    }
+                    $this->queueHelper->insertUnique($productIds);
+                    $lastId = end($pageOfProducts)['entity_id'];
+                } else {
+                    break;
                 }
-                $this->queueHelper->insertUnique($productIds);
-                $lastId = end($pageOfProducts)['entity_id'];
-            } else {
-                break;
             }
         }
 
