@@ -279,8 +279,12 @@ class TagalysApi implements TagalysManagementInterface
     public function categoryDisable($storeIds, $categoryId){
         try {
             $this->logger->info("categoryTryDelete: params: " . json_encode(['storeIds' => $storeIds, 'categoryId' => $categoryId]));
-            $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, ['is_active' => false], $storeIds);
-            $response = ['status' => 'OK', 'disabled' => true];
+            if ($this->tagalysCategoryHelper->categoryExist($categoryId)) {
+                $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, ['is_active' => false], $storeIds);
+                $response = ['status' => 'OK', 'disabled' => true, 'found' => true];
+            } else {
+                $response = ['status' => 'OK', 'disabled' => true, 'found' => false];
+            }
         } catch (\Exception $e) {
             $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
         }

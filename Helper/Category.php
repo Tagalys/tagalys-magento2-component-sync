@@ -875,6 +875,8 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     private function getProductsToRemove($storeId, $categoryId, $newProducts){
         $productsToRemove = [];
         $indexTable = $this->getIndexTableName($storeId);
+        // $sql = "SELECT DISTINCT cpe.entity_id as product_id FROM $cpe as cpe INNER JOIN $cpei as cpei ON cpe.entity_id = cpei.entity_id WHERE cpe.updated_at > '$lastUpdateAt' AND cpei.attribute_id = $attrId AND cpei.value IN (2,3,4) AND cpei.store_id IN ($stores)";
+        // use this type of query here. dont rely on index table
         $sql = "SELECT product_id FROM $indexTable WHERE category_id = $categoryId AND store_id = $storeId AND visibility IN (2, 4); ";
         $result = $this->runSqlSelect($sql);
         foreach ($result as $row) {
