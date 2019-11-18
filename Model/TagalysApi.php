@@ -246,8 +246,8 @@ class TagalysApi implements TagalysManagementInterface
 
     public function categorySave($category) {
         // ALERT: Test this in 2.0 - 2.1
-        $this->logger->info("categorySave: params: " . json_encode($category));
         try {
+            $this->logger->info("categorySave: params: " . json_encode($category));
             if ($category['id']){
                 // update mode
                 $categoryId = $this->tagalysCategoryHelper->updateCategoryDetails($category['id'], $category['details'], $category['for_stores']);
@@ -263,26 +263,24 @@ class TagalysApi implements TagalysManagementInterface
         return json_encode($response);
     }
 
-    public function categoryTryDelete($storeIds, $categoryId, $forceDelete = false) {
-        $this->logger->info("categoryTryDelete: params: " . json_encode(['storeIds'=>$storeIds, 'categoryId'=>$categoryId, 'forceDelete'=>$forceDelete]));
+    public function categoryDelete($categoryId) {
         try {
+            $this->logger->info("categoryTryDelete: categoryId: $categoryId");
             if ($this->tagalysCategoryHelper->categoryExist($categoryId)){
-                if (!is_array($storeIds)){
-                    $storeIds = [$storeIds];
-                }
-                foreach ($storeIds as $storeId) {
-                    $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, ['store_id'=>$storeId,'is_active' => false]);
-                }
-                if ($this->tagalysCategoryHelper->canDelete($categoryId) || $forceDelete) {
-                    $this->tagalysCategoryHelper->deleteTagalysCategory($categoryId);
-                    $response = ['status' => 'OK', 'deleted' => true];
-                } else {
-                    $activeStores = $this->tagalysCategoryHelper->getCategoryActiveStores($categoryId);
-                    $response = ['status' => 'OK', 'deleted' => false, 'active_stores' => $activeStores];
-                }
-            } else {
-                $response = ['status' => 'OK', 'deleted' => true];
+                $this->tagalysCategoryHelper->deleteTagalysCategory($categoryId);
             }
+            $response = ['status' => 'OK', 'deleted' => true];
+        } catch (\Exception $e) {
+            $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
+        }
+        return json_encode($response);
+    }
+
+    public function categoryDisable($storeIds, $categoryId){
+        try {
+            $this->logger->info("categoryTryDelete: params: " . json_encode(['storeIds' => $storeIds, 'categoryId' => $categoryId]));
+            $this->tagalysCategoryHelper->updateCategoryDetails($categoryId, ['is_active' => false], $storeIds);
+            $response = ['status' => 'OK', 'disabled' => true];
         } catch (\Exception $e) {
             $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
         }

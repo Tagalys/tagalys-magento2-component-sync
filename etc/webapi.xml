@@ -12,8 +12,14 @@
             <resource ref="Tagalys_Sync::tagalys" />
         </resources>
     </route>
-    <route method="POST" url="/V1/tagalys/categories/try-delete">
-        <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="categoryTryDelete"/>
+    <route method="POST" url="/V1/tagalys/categories/delete">
+        <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="categoryDelete"/>
+        <resources>
+            <resource ref="Tagalys_Sync::tagalys" />
+        </resources>
+    </route>
+    <route method="POST" url="/V1/tagalys/categories/disable">
+        <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="categoryDisable"/>
         <resources>
             <resource ref="Tagalys_Sync::tagalys" />
         </resources>

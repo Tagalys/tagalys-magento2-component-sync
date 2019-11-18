@@ -24,10 +24,16 @@ interface TagalysManagementInterface
 
     /**
      * POST for Categories api
-     * @param mixed $storeIds
      * @param int $categoryId
-     * @param boolean|null $forceDelete
      * @return string
      */
-    public function categoryTryDelete($storeIds, $categoryId, $forceDelete = false);
+    public function categoryDelete($categoryId);
+    
+    /**
+     * POST for Categories api
+     * @param mixed $storeIds
+     * @param int $categoryId
+     * @return string
+     */
+    public function categoryDisable($storeIds, $categoryId);
 }
