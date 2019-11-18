@@ -771,18 +771,18 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         if(!is_array($forStores)){
             $forStores = [$forStores];
         }
-        $category = $this->categoryFactory->create()->load($categoryId);
+        $category = $this->categoryFactory->create()->setStoreId(0)->load($categoryId);
         if($category->getId() == null){
             throw new \Exception("Platform category not found");
         }
         $categoryDetails['default_sort_by'] = 'position';
-        $category->addData($categoryDetails);
         if (count($forStores) > 0){
             foreach ($forStores as $storeId) {
-                $category->setStoreId($storeId)->save();
+                $category = $this->categoryFactory->create()->setStoreId($storeId)->load($categoryId);
+                $category->addData($categoryDetails)->save();
             }
         } else {
-            $category->save();
+            $category->addData($categoryDetails)->save();
         }
         $this->categoryUpdateAfter($category);
         return $categoryId;
