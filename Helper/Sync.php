@@ -129,9 +129,9 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         if ($lastDetected == NULL) {
             $lastDetected = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
         }
-        $optimize = $this->tagalysConfiguration->getConfig('use_optimized_product_updates');
+        $optimize = $this->tagalysConfiguration->getConfig('use_optimized_product_updated_at');
         if ($optimize){
-            $this->queueHelper->importProductsToSync();
+            $this->queueHelper->importProductsToSync($lastDetected);
         } else {
             $lastId = 0;
             while (true) {
