@@ -230,27 +230,16 @@ class TagalysApi implements TagalysManagementInterface
                     $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
                 }
                 break;
-            case 'set_default_sort_by':
-                // called after category save using Magento API.
-                try {
-                    $this->logger->info("set_default_sort_by: params: " . json_encode($params));
-                    $this->tagalysCategoryHelper->reindexFlatCategories();
-                    $res = $this->tagalysCategoryHelper->setDefaultSortBy($params['category_id']);
-                    if ($res) {
-                        $response = ['status' => 'OK', 'message' => $res];
-                    } else {
-                        $response = ['status' => 'error', 'message' => 'Unknown error occurred'];
-                    }
-                } catch (\Exception $e) {
-                    $response = ['status' => 'error', 'message' => $e->getMessage(), 'trace' => $e->getTrace()];
-                }
-                break;
             case 'update_category_pages_store_mapping':
                 $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping'], true);
                 $response = array('updated' => true, $params['store_mapping']);
                 break;
             case 'update_product_update_detection_methods':
                 $this->tagalysConfiguration->setConfig('product_update_detection_methods', $params['methods'], true);
+                $response = array('updated' => true, $params['methods']);
+                break;
+            case 'set_config':
+                $this->tagalysConfiguration->setConfig($params['path'], $params['value'], $params['json_encode']);
                 $response = array('updated' => true, $params['methods']);
                 break;
         }

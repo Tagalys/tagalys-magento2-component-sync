@@ -50,7 +50,7 @@ class Queue extends \Magento\Framework\App\Helper\AbstractHelper
         $cpei = $this->resourceConnection->getTableName('catalog_product_entity_int');
         $cpr = $this->resourceConnection->getTableName('catalog_product_relation');
         $tq = $this->resourceConnection->getTableName('tagalys_queue');
-        $sql = "SELECT ea.attribute_id FROM $ea as ea INNER JOIN $eet as eet ON ea.entity_type_id = eet.entity_type_id WHERE ea.attribute_code = 'visibility'";
+        $sql = "SELECT ea.attribute_id FROM $ea as ea INNER JOIN $eet as eet ON ea.entity_type_id = eet.entity_type_id WHERE eet.entity_table = 'catalog_product_entity' AND ea.attribute_code = 'visibility'";
         $rows = $this->runSqlSelect($sql);
         $attrId = $rows[0]['attribute_id'];
         $sql = "REPLACE $tq (product_id) SELECT DISTINCT cpe.entity_id as product_id FROM $cpe as cpe INNER JOIN $cpei as cpei ON cpe.entity_id = cpei.entity_id WHERE cpe.updated_at > '$lastChecked' AND cpei.attribute_id = $attrId AND cpei.value IN (2,3,4) AND cpei.store_id IN ($stores);";
