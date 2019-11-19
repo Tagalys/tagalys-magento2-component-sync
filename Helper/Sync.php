@@ -67,12 +67,12 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 'force_regenerate_thumbnails' => $forceRegenerateThumbnails
             )));
             $this->tagalysConfiguration->setConfig("store:$storeId:resync_required", '0');
-            // triggerFeedForStore is generally called in a loop for all stores, so working without store context in sync:method:db.catalog_product_entity.updated_at:last_checked is safe
+            // triggerFeedForStore is generally called in a loop for all stores, so working without store context in sync:method:db.catalog_product_entity.updated_at:last_detected_change is safe
 
             $conn = $this->resourceConnection->getConnection();
             $tableName = $this->resourceConnection->getTableName('catalog_product_entity');
             $lastUpdatedAt = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
-            $this->tagalysConfiguration->setConfig("sync:method:db.catalog_product_entity.updated_at:last_checked", $lastUpdatedAt);
+            $this->tagalysConfiguration->setConfig("sync:method:db.catalog_product_entity.updated_at:last_detected_change", $lastUpdatedAt);
             return true;
         } else {
             return false;
@@ -133,10 +133,9 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         $conn = $this->resourceConnection->getConnection();
         $tableName = $this->resourceConnection->getTableName('catalog_product_entity');
 
-        $lastChecked = $this->tagalysConfiguration->getConfig("sync:method:db.catalog_product_entity.updated_at:last_checked");
-        if ($lastChecked == NULL) {
-            // $lastUpdatedAt = end($conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1"))['updated_at'];
-            $lastChecked = date('Y-m-d H:i:s', strtotime('-10 min'));
+        $lastDetected = $this->tagalysConfiguration->getConfig("sync:method:db.catalog_product_entity.updated_at:last_detected_change");
+        if ($lastDetected == NULL) {
+            $lastDetected = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
         }
         $optimize = $this->tagalysConfiguration->getConfig('use_optimized_product_updates');
         if ($optimize){
@@ -144,7 +143,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
         } else {
             $lastId = 0;
             while (true) {
-                $selectQuery = "SELECT entity_id from $tableName WHERE entity_id > $lastId and updated_at > '$lastChecked' ORDER BY entity_id ASC LIMIT 1000";
+                $selectQuery = "SELECT entity_id from $tableName WHERE entity_id > $lastId and updated_at > '$lastDetected' ORDER BY entity_id ASC LIMIT 1000";
                 $pageOfProducts = $conn->fetchAll($selectQuery);
                 $lastNumberOfResults = count($pageOfProducts);
                 if ($lastNumberOfResults > 0) {
@@ -160,8 +159,8 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
             }
         }
 
-        $lastUpdatedAt = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
-        $this->tagalysConfiguration->setConfig("sync:method:db.catalog_product_entity.updated_at:last_checked", $lastUpdatedAt);
+        $lastDetected = $conn->fetchAll("SELECT updated_at from $tableName ORDER BY updated_at DESC LIMIT 1")[0]['updated_at'];
+        $this->tagalysConfiguration->setConfig("sync:method:db.catalog_product_entity.updated_at:last_detected_change", $lastDetected);
     }
 
     public function sync($maxProducts = 500, $max_categories = 50) {

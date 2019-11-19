@@ -102,7 +102,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
                 'legacy_mpage_categories' => '[]',
                 'category_pages_store_mapping' => '{}',
                 'integration_permissions' => '["Tagalys_Sync::tagalys"]',
-                'product_update_detection_methods' => '["events"]', // or '["events","updated_at"]'
+                'product_update_detection_methods' => '["events"]',
                 'use_optimized_product_updates' => true
             );
             if (array_key_exists($configPath, $defaultConfigValues)) {

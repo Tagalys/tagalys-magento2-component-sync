@@ -46,7 +46,6 @@ class Queue extends \Magento\Framework\App\Helper\AbstractHelper
         $stores = implode(',', $stores);
         $ea = $this->resourceConnection->getTableName('eav_attribute');
         $eet = $this->resourceConnection->getTableName('eav_entity_type');
-        $eet = $this->resourceConnection->getTableName('eav_entity_type');
         $cpe = $this->resourceConnection->getTableName('catalog_product_entity');
         $cpei = $this->resourceConnection->getTableName('catalog_product_entity_int');
         $cpr = $this->resourceConnection->getTableName('catalog_product_relation');
