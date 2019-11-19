@@ -185,7 +185,7 @@ class Sync extends \Magento\Framework\App\Helper\AbstractHelper
                 foreach($stores as $i => $storeId) {
                     $totalProducts = $this->getProductsCount($storeId);
                     $cutoff = 0.33 * $totalProducts;
-                    if ($remainingProductUpdates > $cutoff) {
+                    if ($remainingProductUpdates > $cutoff && $remainingProductUpdates > 1000) {
                         $clearQueueAndTriggerResync = true;
                         break;
                     }
