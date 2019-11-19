@@ -239,8 +239,11 @@ class TagalysApi implements TagalysManagementInterface
                 $response = array('updated' => true, $params['methods']);
                 break;
             case 'set_config':
+                if (!array_key_exists('json_encode', $params)){
+                    $params['json_encode'] = false;
+                }
                 $this->tagalysConfiguration->setConfig($params['path'], $params['value'], $params['json_encode']);
-                $response = array('updated' => true, $params['methods']);
+                $response = array('updated' => true, $params['value']);
                 break;
         }
         return json_encode($response);
