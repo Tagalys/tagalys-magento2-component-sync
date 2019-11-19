@@ -7,6 +7,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     public function __construct(
         \Tagalys\Sync\Helper\Configuration $tagalysConfiguration,
         \Tagalys\Sync\Helper\Api $tagalysApi,
+        \Tagalys\Sync\Helper\Queue $tagalysQueue,
         \Magento\Catalog\Model\ResourceModel\Category\Collection $categoryCollection,
         \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollectionFactory,
         \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
@@ -46,6 +47,7 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
         $this->indexerFactory = $indexerFactory;
         $this->urlRewriteFactory = $urlRewriteFactory;
         $this->urlRewriteCollection = $urlRewriteCollection;
+        $this->tagalysQueue = $tagalysQueue;
         
         $writer = new \Zend\Log\Writer\Stream(BP . '/var/log/tagalys_commands.log');
         $this->tagalysCommandsLogger = new \Zend\Log\Logger();
@@ -911,7 +913,9 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
     private function paginateSqlInsert($categoryId, $productPositions) {
         $existingProducts = [];
         $rowsToInsert = [];
+        $deletedProducts = [];
         $productCount = count($productPositions);
+        $productsInSystem = $this->filterDeletedProducts($productPositions);
         $tableName = $this->resourceConnection->getTableName('catalog_category_product');
         $sql = "SELECT product_id FROM $tableName WHERE category_id=$categoryId;";
         $rows = $this->runSqlSelect($sql);
@@ -924,9 +928,13 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 $updateSql = "UPDATE $tableName SET position=$index WHERE category_id=$categoryId AND product_id=$productId;";
                 $this->runSql($updateSql);
             } else {
-                $rowsToInsert[] = "($categoryId, $productId, $index)";
+                if (in_array($productId, $productsInSystem)){
+                    $rowsToInsert[] = "($categoryId, $productId, $index)";
+                } else {
+                    $deletedProducts[] = $productId;
+                }
             }
-            if( ($index % 100 == 0 || $index == $productCount) && count($rowsToInsert) > 0 ){
+            if( ($index % 500 == 0 || $index == $productCount) && count($rowsToInsert) > 0 ){
                 $insertSql = "INSERT INTO $tableName (category_id, product_id, position) VALUES ";
                 $values = implode(', ', $rowsToInsert);
                 $query = $insertSql . $values . ';';
@@ -934,6 +942,28 @@ class Category extends \Magento\Framework\App\Helper\AbstractHelper
                 $this->runSql($query);
             }
         }
+        // add deleted product ids to sync queue
+        $this->tagalysQueue->insertUnique($deletedProducts);
+    }
+
+    private function filterDeletedProducts($productIds){
+        $cpe = $this->resourceConnection->getTableName('catalog_product_entity');
+        $productInSystem = [];
+        $count = count($productIds);
+        $thisBatch = [];
+        for ($index = 0; $index < $count; $index++) {
+            $thisBatch[] = $productIds[$index];
+            if (($index % 500 == 0 || $index == $count-1)) {
+                $thisBatch = implode(',', $thisBatch);
+                $sql = "SELECT entity_id FROM $cpe WHERE entity_id IN ($thisBatch)";
+                $rows = $this->runSqlSelect($sql);
+                foreach ($rows as $row) {
+                    $productInSystem[] = $row['entity_id'];
+                }
+                $thisBatch = [];
+            }
+        }
+        return $productInSystem;
     }
 
     private function _paginateSqlRemove($categoryId, $products){
