@@ -16,6 +16,14 @@ interface TagalysManagementInterface
     public function info($params);
 
     /**
+     * POST for Sync api
+     * @param mixed $params
+     * @return string
+     */
+    // ALERT: Test this in 2.0 - 2.1
+    public function syncCallback($params);
+
+    /**
      * POST for Categories api
      * @param mixed $category
      * @return string

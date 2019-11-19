@@ -352,6 +352,9 @@
             if (tree_type == 'category') {
                 multiselect = 'categories_for_tagalys_store_' + storeId;
                 target_div = 'categories-jtree-store-' + storeId;
+                if (tgls_jq('#'+target_div).length == 0) {
+                    return;
+                }
                 tgls_jq('#select-all-category-store-' + storeId).on('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();

@@ -37,12 +37,25 @@ class TagalysApi implements TagalysManagementInterface
         $this->logger->addWriter($writer);
     }
 
-    public function info($params) {
-        return $this->execute($params);
+    public function syncCallback($params) {
+        $split = explode('media/tagalys/', $params['completed']);
+        $filename = $split[1];
+        if (is_null($filename)) {
+            $split = explode('media\/tagalys\/', $params['completed']);
+            $filename = $split[1];
+        }
+        if (is_null($filename)) {
+            $this->tagalysApi->log('error', 'Error in callbackAction. Unable to read filename', array('params' => $params));
+            $response = array('result' => false);
+        } else {
+            $this->tagalysSync->receivedCallback($params['store_id'], $filename);
+            $response = array('result' => true);
+        }
+        return json_encode($response);
     }
 
-    public function execute($params) {
-        // FIXME: outdated code
+    public function info($params)
+    {
         switch ($params['info_type']) {
             case 'status':
                 try {
@@ -236,12 +249,12 @@ class TagalysApi implements TagalysManagementInterface
                 $this->tagalysConfiguration->setConfig('category_pages_store_mapping', $params['store_mapping'], true);
                 $response = array('updated' => true, $params['store_mapping']);
                 break;
-            case 'assign_patent_category':
-                $this->tagalysCategoryHelper->setTagalysParentCategory($params['store_id'], $params['category_id']);
-                $response = array('updated' => true);
+            case 'update_product_update_detection_methods':
+                $this->tagalysConfiguration->setConfig('product_update_detection_methods', $params['methods'], true);
+                $response = array('updated' => true, $params['methods']);
                 break;
         }
-        return $response;
+        return json_encode($response);
     }
 
     public function categorySave($category) {

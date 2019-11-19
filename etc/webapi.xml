@@ -6,6 +6,12 @@
             <resource ref="Tagalys_Sync::tagalys" />
         </resources>
     </route>
+    <route method="POST" url="/V1/tagalys/sync/callback">
+        <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="syncCallback"/>
+        <resources>
+            <resource ref="Tagalys_Sync::tagalys" />
+        </resources>
+    </route>
     <route method="POST" url="/V1/tagalys/categories">
         <service class="Tagalys\Sync\Api\TagalysManagementInterface" method="categorySave"/>
         <resources>

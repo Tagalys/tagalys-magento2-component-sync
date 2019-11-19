@@ -20,6 +20,10 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         \Tagalys\Sync\Helper\Api $tagalysApi,
         \Magento\Catalog\Model\ResourceModel\Category\CollectionFactory $categoryCollection,
         \Tagalys\Sync\Model\CategoryFactory $tagalysCategoryFactory,
+        \Magento\Integration\Model\IntegrationFactory $integrationFactory,
+        \Magento\Integration\Model\Oauth\Token $oauthToken,
+        \Magento\Integration\Model\AuthorizationService $authorizationService,
+        \Magento\Integration\Model\OauthService $oauthService,
         \Magento\Framework\Event\Manager $eventManager
     )
     {
@@ -39,6 +43,10 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
         $this->tagalysApi = $tagalysApi;
         $this->categoryCollection = $categoryCollection;
         $this->tagalysCategoryFactory = $tagalysCategoryFactory;
+        $this->integrationFactory = $integrationFactory;
+        $this->oauthToken = $oauthToken;
+        $this->authorizationService = $authorizationService;
+        $this->oauthService = $oauthService;
         $this->eventManager = $eventManager;
     }
 
@@ -415,7 +423,7 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             'sort_options' =>  $this->getSortOptions($storeId),
             'products_count' => $productsCount,
             'domain' => $storeDomain,
-            'platform_details' => ['plugin_version' => $this->tagalysApi->getPluginVersion()]
+            'platform_details' => ['plugin_version' => $this->tagalysApi->getPluginVersion(), 'access_token' => $this->getAccessToken()]
         );
 
         $configurationObj = new \Magento\Framework\DataObject(array('configuration' => $configuration, 'store_id' => $storeId));
@@ -633,5 +641,45 @@ class Configuration extends \Magento\Framework\App\Helper\AbstractHelper
             $storeDisplayLabel = $website->getName() . ' / ' . $group->getName() . ' / ' . $store->getName();
         }
         return $storeDisplayLabel;
+    }
+
+    public function getAccessToken(){
+        $integrationData = array(
+            'name' => 'Tagalys',
+            'email' => 'support@tagalys.com',
+            'status' => '1',
+            'endpoint' => '',
+            'setup_type' => '0'
+        );
+        $integration = $this->integrationFactory->create()->load($integrationData['name'], 'name');
+        if(empty($integration->getData())){
+            // Code to create Integration
+            $integration = $this->integrationFactory->create();
+            $integration->setData($integrationData);
+            $integration->save();
+            $integrationId = $integration->getId();
+            $consumerName = 'Integration' . $integrationId;
+            // Code to create consumer
+            $consumer = $this->oauthService->createConsumer(['name' => $consumerName]);
+            $consumerId = $consumer->getId();
+            $integration->setConsumerId($consumer->getId());
+            $integration->save();
+            // Code to grant permission
+            $this->authorizationService->grantPermissions($integrationId, $this->getConfig('integration_permissions', true));
+            // Code to Activate and Authorize
+            $this->oauthToken->createVerifierToken($consumerId);
+            $this->oauthToken->setType('access');
+            $this->oauthToken->save();
+            $accessToken = $this->oauthToken->getToken();
+            return $accessToken;
+        } else {
+            $accessToken = $this->oauthToken->loadByConsumerIdAndUserType($integration->getConsumerId(), 1)->getToken();
+            return $accessToken;
+        }
+    }
+
+    public function deleteIntegration() {
+        $integration = $this->integrationFactory->create()->load('Tagalys', 'name');
+        $integration->delete();
     }
 }

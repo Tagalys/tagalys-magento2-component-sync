@@ -175,7 +175,6 @@ class Edit extends \Magento\Backend\App\Action
                                 $params[ 'categories_for_tagalys_store_' . $storeId] = array();
                             }
                             if($params["enable_smart_pages"] == 1){
-                                $this->platformDetailsToSend['access_token'] = $this->tagalysSync->getAccessToken();
                                 try{
                                     $this->saveSmartPageParentCategory($storeId, $params);
                                 } catch(\Exception $e) {
@@ -302,7 +301,7 @@ class Edit extends \Magento\Backend\App\Action
                     $this->queueHelper->truncate();
                     $this->tagalysConfiguration->truncate();
                     $this->tagalysCategoryHelper->truncate();
-                    $this->tagalysSync->deleteIntegration();
+                    $this->tagalysConfiguration->deleteIntegration();
                     $redirectToTab = 'api_credentials';
                     break;
                 case 'Enable monitoring of catalog_product_entity.updated_at':
