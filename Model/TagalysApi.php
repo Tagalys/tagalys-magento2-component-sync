@@ -149,7 +149,7 @@ class TagalysApi implements TagalysManagementInterface
                 $response = array('updated' => true);
                 break;
             case 'mark_positions_sync_required_for_categories':
-                $this->tagalysCategoryHelper->markPositionsSyncRequiredForCategories($params['identification']['store_id'], $params['category_ids']);
+                $this->tagalysCategoryHelper->markPositionsSyncRequiredForCategories($params['store_id'], $params['category_ids']);
                 $response = array('updated' => true);
                 break;
             case 'get_categories_powered_by_tagalys':
@@ -186,7 +186,7 @@ class TagalysApi implements TagalysManagementInterface
                     if ($params['product_positions'] == -1) {
                         $params['product_positions'] = [];
                     }
-                    $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['identification']['store_id'], $params['category_id'], $params['product_positions']);
+                    $res = $this->tagalysCategoryHelper->bulkAssignProductsToCategoryAndRemove($params['store_id'], $params['category_id'], $params['product_positions']);
                     if ($res) {
                         $response = ['status' => 'OK', 'message' => $res];
                     } else {
@@ -202,7 +202,7 @@ class TagalysApi implements TagalysManagementInterface
                     if ($params['product_positions'] == -1) {
                         $params['product_positions'] = [];
                     }
-                    $res = $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['identification']['store_id'], $params['category_id'], $params['product_positions']);
+                    $res = $this->tagalysCategoryHelper->performCategoryPositionUpdate($params['store_id'], $params['category_id'], $params['product_positions']);
                     if ($res) {
                         $response = ['status' => 'OK', 'message' => $res];
                     } else {
