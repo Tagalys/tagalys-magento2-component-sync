@@ -95,6 +95,11 @@ class Support extends Generic
             'text' => '<a href="http://support.tagalys.com/support/tickets/new" target="_blank">Submit a new Ticket</a><br><a href="http://support.tagalys.com/support/tickets" target="_blank">Check status</a>',
         ));
 
+        $supportfieldset->addField('plugin_version', 'note', array(
+            'label' => __('Plugin Version'),
+            'text' => $this->tagalysApi->getPluginVersion(),
+        ));
+
         $troubleshootingInfoFieldset = $form->addFieldset("troubleshootingInfoFieldset", array('legend' => __("Troubleshooting Info")));
 
         $info = array('config' => array(), 'files_in_media_folder' => array());
